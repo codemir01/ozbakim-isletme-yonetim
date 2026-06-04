@@ -1,0 +1,41 @@
+using System.Security.Claims;
+using IsletmeYonetim.Application.DTOs;
+using IsletmeYonetim.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace IsletmeYonetim.API.Controllers;
+
+[ApiController]
+[Route("api/v1/profil")]
+[Authorize]
+public class ProfilController(IProfilService profilService) : ControllerBase
+{
+    // JWT'den oturum açmış kullanıcının ID'sini alır
+    private Guid KullaniciId =>
+        Guid.Parse(User.FindFirstValue("sub") ?? throw new UnauthorizedAccessException());
+
+    // GET /api/v1/profil — mevcut kullanıcı bilgilerini döndür
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<ProfilDto>>> Get()
+    {
+        var response = await profilService.GetProfilAsync(KullaniciId);
+        return response.Basarili ? Ok(response) : NotFound(response);
+    }
+
+    // PUT /api/v1/profil — ad, soyad, unvan güncelle
+    [HttpPut]
+    public async Task<ActionResult<ApiResponse<object>>> Guncelle([FromBody] ProfilGuncelleRequest request)
+    {
+        var response = await profilService.UpdateProfilAsync(KullaniciId, request);
+        return response.Basarili ? Ok(response) : BadRequest(response);
+    }
+
+    // PUT /api/v1/profil/sifre — şifre değiştir
+    [HttpPut("sifre")]
+    public async Task<ActionResult<ApiResponse<object>>> SifreGuncelle([FromBody] SifreGuncelleRequest request)
+    {
+        var response = await profilService.UpdateSifreAsync(KullaniciId, request);
+        return response.Basarili ? Ok(response) : BadRequest(response);
+    }
+}

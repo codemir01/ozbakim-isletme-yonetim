@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/IsletmeYonetim.API/IsletmeYonetim.API.csproj" />
+    <Project Path="backend/IsletmeYonetim.Application/IsletmeYonetim.Application.csproj" />
+    <Project Path="backend/IsletmeYonetim.Domain/IsletmeYonetim.Domain.csproj" />
+    <Project Path="backend/IsletmeYonetim.Infrastructure/IsletmeYonetim.Infrastructure.csproj" />
+  </Folder>
+</Solution>

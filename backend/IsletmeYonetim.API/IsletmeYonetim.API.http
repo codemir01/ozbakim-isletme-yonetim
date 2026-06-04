@@ -1,0 +1,12 @@
+@IsletmeYonetim.API_HostAddress = http://localhost:5096
+
+### Giriş yap (token al)
+POST {{IsletmeYonetim.API_HostAddress}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "eposta": "admin@isletme.com",
+  "sifre": "Admin123"
+}
+
+###
