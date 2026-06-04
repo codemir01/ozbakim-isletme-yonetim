@@ -39,18 +39,8 @@ TOHUM = 2024
 # ----------------------------------------------------------------------------
 # Sabit listeler (Türkiye pazarına uygun)
 # ----------------------------------------------------------------------------
-SEHIRLER = [
-    "İstanbul", "Ankara", "İzmir", "Bursa", "Antalya", "Adana", "Konya",
-    "Gaziantep", "Kayseri", "Mersin", "Eskişehir", "Samsun", "Denizli", "Sakarya",
-]
-
-ERKEK_ISIM = ["Ahmet", "Mehmet", "Mustafa", "Ali", "Hüseyin", "Hasan", "İbrahim",
-              "Murat", "Emre", "Burak", "Serkan", "Kemal", "Oğuz", "Yusuf"]
-KADIN_ISIM = ["Ayşe", "Fatma", "Emine", "Hatice", "Zeynep", "Elif", "Meryem",
-              "Şenay", "Derya", "Gül", "Sibel", "Esra", "Buse", "Nur"]
-SOYADLAR = ["Yılmaz", "Kaya", "Demir", "Şahin", "Çelik", "Yıldız", "Yıldırım",
-            "Öztürk", "Aydın", "Arslan", "Doğan", "Kılıç", "Aslan", "Çetin",
-            "Kara", "Koç", "Kurt", "Özdemir", "Şimşek", "Polat"]
+# Firma sadece bu bölgede hizmet veriyor
+SEHIR = "Adana Kozan"
 
 TEKNISYENLER = ["Mehmet Demir", "Ramazan Koç", "Serkan Aydın", "Hakan Yıldız",
                 "Onur Çelik", "Volkan Arslan", "Tolga Şahin"]
@@ -124,15 +114,6 @@ ISLEM_UCRET = {
 RISK_ETIKET = {0: "Düşük", 1: "Orta", 2: "Yüksek"}
 
 
-def _ad_soyad(rng: random.Random) -> str:
-    isim = rng.choice(ERKEK_ISIM + KADIN_ISIM)
-    return f"{isim} {rng.choice(SOYADLAR)}"
-
-
-def _telefon(rng: random.Random) -> str:
-    return f"05{rng.randint(30, 59)} {rng.randint(100,999)} {rng.randint(10,99)} {rng.randint(10,99)}"
-
-
 def _risk_seviyesi(cihaz_yasi: int, bakim_sayisi: int, son_bakim_gun: int,
                    rng: random.Random) -> int:
     """
@@ -163,7 +144,7 @@ def veri_seti_olustur(kayit_sayisi: int = 5000, dosya_yolu: Path = CSV_YOLU) -> 
     gun_araligi = (bit_tarih - bas_tarih).days
 
     sutunlar = [
-        "servis_no", "servis_tarihi", "sehir", "musteri_adi", "telefon",
+        "servis_tarihi", "sehir",
         "cihaz_turu", "marka", "model", "cihaz_yasi", "garanti_durumu",
         "ariza_turu", "yapilan_islem", "kullanilan_parca", "servis_ucreti",
         "teknisyen", "bakim_sayisi", "son_bakim_gun", "musteri_memnuniyeti",
@@ -218,11 +199,8 @@ def veri_seti_olustur(kayit_sayisi: int = 5000, dosya_yolu: Path = CSV_YOLU) -> 
         memnuniyet = rng.choices([3, 4, 5], weights=[15, 45, 40], k=1)[0]
 
         satirlar.append([
-            f"SRV-{servis_tarihi.year}-{i:05d}",
             servis_tarihi.isoformat(),
-            rng.choice(SEHIRLER),
-            _ad_soyad(rng),
-            _telefon(rng),
+            SEHIR,
             cihaz_turu,
             marka,
             model,
@@ -240,7 +218,7 @@ def veri_seti_olustur(kayit_sayisi: int = 5000, dosya_yolu: Path = CSV_YOLU) -> 
         ])
 
     # Kayıtları tarihe göre sırala (gerçek bir dışa aktarım gibi)
-    satirlar.sort(key=lambda s: s[1])
+    satirlar.sort(key=lambda s: s[0])
 
     with open(dosya_yolu, "w", newline="", encoding="utf-8-sig") as f:
         yazici = csv.writer(f)
