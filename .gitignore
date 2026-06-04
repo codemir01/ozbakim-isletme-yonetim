@@ -41,8 +41,6 @@ __pycache__/
 .venv/
 venv/
 env/
-# Üretilen sentetik veri seti (model.py ilk çalışınca yeniden üretir)
-ai-service/veri_seti.csv
 
 # ============================================================
 #  IDE / Editör / İşletim Sistemi
