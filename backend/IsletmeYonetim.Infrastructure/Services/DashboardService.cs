@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace IsletmeYonetim.Infrastructure.Services;
 
-public class DashboardService(AppDbContext db) : IDashboardService
+public class DashboardService(AppDbContext db, ITenantProvider tenant) : IDashboardService
 {
     public async Task<ApiResponse<DashboardOzetDto>> GetOzetAsync()
     {
@@ -150,12 +150,16 @@ public class DashboardService(AppDbContext db) : IDashboardService
 
     public async Task<ApiResponse<List<BakimServisCihazDto>>> GetBakimServisCihazlarAsync()
     {
+        // DİKKAT: Ham SQL, EF global tenant filtresini ATLAR. Bu yüzden IsletmeId
+        // filtresini ELLE ekliyoruz — yoksa tüm işletmelerin verisi karışır (izolasyon kaçağı).
+        var isletmeId = tenant.IsletmeId ?? Guid.Empty;
         var liste = await db.Database.SqlQuery<BakimServisCihazDto>($"""
             SELECT u."UrunAdi" AS "Cihaz", COUNT(*) AS "Adet"
             FROM "BakimGecmisi" bg
             JOIN "BakimServisler" bs ON bg."BakimServisId" = bs."Id"
             JOIN "Satislar" s ON bs."SatisId" = s."Id"
             JOIN "Urunler" u ON s."UrunId" = u."Id"
+            WHERE bg."IsletmeId" = {isletmeId}
             GROUP BY u."UrunAdi"
             ORDER BY "Adet" DESC
             LIMIT 10
