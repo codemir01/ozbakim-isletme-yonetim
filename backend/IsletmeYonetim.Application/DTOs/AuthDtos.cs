@@ -15,6 +15,15 @@ public record PagedResponse<T>(
 // Giriş ekranından gelen istek
 public record LoginRequest(string Eposta, string Sifre);
 
+// İşletme kayıt (self-signup) isteği — yeni işletme + ilk admin oluşturur
+public record KayitRequest(
+    string IsletmeAdi,
+    string Ad,
+    string Soyad,
+    string Eposta,
+    string Sifre
+);
+
 // Başarılı girişte frontend'e gönderilen cevap
 public record LoginResponse(
     string Token,       // JWT access token (15 dakika geçerli)

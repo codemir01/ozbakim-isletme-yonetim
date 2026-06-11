@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function LoginPage() {
@@ -162,6 +163,13 @@ export default function LoginPage() {
               ))}
             </div>
           </div>
+
+          <p className="mt-6 text-center text-sm text-slate-500">
+            İşletmen yok mu?{' '}
+            <Link to="/kayit" className="font-bold text-indigo-600 hover:text-indigo-500">
+              Hemen ücretsiz dene
+            </Link>
+          </p>
 
         </div>
       </div>

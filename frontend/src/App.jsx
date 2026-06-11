@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import LoginPage from './pages/Login/LoginPage';
+import KayitPage from './pages/Login/KayitPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 import MusterilerPage from './pages/Musteriler/MusterilerPage';
 import MusteriDetayPage from './pages/Musteriler/MusteriDetayPage';
@@ -26,6 +27,7 @@ export default function App() {
         <Routes>
           {/* Login sayfası herkese açık */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/kayit" element={<KayitPage />} />
 
           {/* Aşağıdaki sayfalar PrivateRoute ile koruma altında.
               Token olmadan bu URL'lere gidilirse /login'e yönlendirilir. */}

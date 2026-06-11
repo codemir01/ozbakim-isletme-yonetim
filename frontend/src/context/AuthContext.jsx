@@ -32,6 +32,17 @@ export function AuthProvider({ children }) {
     navigate('/dashboard');
   }
 
+  // 2b. (Kayıt Fonksiyonu): Yeni işletme + admin oluşturur ve otomatik giriş yapar.
+  async function kayitOl(bilgi) {
+    const res = await api.post('/auth/kayit', bilgi);
+    const { token, ad, soyad, rol, kullaniciId } = res.data.veri;
+    localStorage.setItem('token', token);
+    const k = { ad, soyad, rol, id: kullaniciId };
+    localStorage.setItem('kullanici', JSON.stringify(k));
+    setKullanici(k);
+    navigate('/dashboard');
+  }
+
   // 3. (Çıkış Fonksiyonu): Tarayıcıdaki token ve kullanıcı bilgilerini imha eder.
   function cikisYap() {
     localStorage.removeItem('token');
@@ -41,7 +52,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ kullanici, setKullanici, girisYap, cikisYap }}>
+    <AuthContext.Provider value={{ kullanici, setKullanici, girisYap, kayitOl, cikisYap }}>
       {children}
     </AuthContext.Provider>
   );

@@ -18,4 +18,13 @@ public class AuthController(IAuthService authService) : ControllerBase
         // Başarılıysa 200, değilse 401 Unauthorized döner
         return response.Basarili ? Ok(response) : Unauthorized(response);
     }
+
+    // Yeni işletme kaydı (self-signup) — giriş yapmadan erişilebilir
+    [HttpPost("kayit")]
+    [EnableRateLimiting("login")]
+    public async Task<ActionResult<ApiResponse<LoginResponse>>> Kayit([FromBody] KayitRequest request)
+    {
+        var response = await authService.KayitAsync(request);
+        return response.Basarili ? Ok(response) : BadRequest(response);
+    }
 }
