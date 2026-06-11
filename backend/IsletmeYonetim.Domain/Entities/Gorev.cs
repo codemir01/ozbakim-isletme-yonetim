@@ -5,9 +5,10 @@ namespace IsletmeYonetim.Domain.Entities;
 // Gorevler tablosu — bir personele atanan iş.
 // Bir görevin hem "oluşturanı" hem de "atananı" var; ikisi de Kullanici tablosuna FK.
 // EF Core bunları otomatik ayırt edemez, bu yüzden AppDbContext'te elle tanımlandı.
-public class Gorev
+public class Gorev : ITenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid IsletmeId { get; set; }   // Hangi işletmeye (tenant) ait
     public string GorevAdi { get; set; } = string.Empty;
     public string GorevDetayi { get; set; } = string.Empty;
     public GorevOncelik Oncelik { get; set; } // Yuksek, Orta, Dusuk

@@ -9,18 +9,21 @@ public class AuthService(AppDbContext db, IJwtService jwtService, ILisansService
 {
     public async Task<ApiResponse<LoginResponse>> LoginAsync(LoginRequest request)
     {
-        // 0. Lisans kontrolü — süresi dolmuşsa giriş engellenir
-        if (!await lisansService.LisansGecerliMiAsync())
-            return new ApiResponse<LoginResponse>(false, null, "Lisansınız sona erdi. Lütfen yöneticinizle iletişime geçin.", null);
-
-        // 1. E-posta ile aktif kullanıcıyı bul
+        // 1. E-posta ile aktif kullanıcıyı bul.
+        // DİKKAT: Login anında JWT (dolayısıyla tenant) henüz yok → global filtreyi ATLA.
+        // E-posta sistemde GLOBAL benzersizdir (1 e-posta = 1 işletme), o yüzden tek kullanıcı döner.
         var kullanici = await db.Kullanicilar
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(k => k.Eposta == request.Eposta && k.AktifMi);
 
         // 2. Kullanıcı yoksa veya şifre yanlışsa genel hata döndür
         // BCrypt.Verify: düz metni hash ile karşılaştırır — güvenli
         if (kullanici is null || !BCrypt.Net.BCrypt.Verify(request.Sifre, kullanici.SifreHash))
             return new ApiResponse<LoginResponse>(false, null, "E-posta veya şifre hatalı.", null);
+
+        // 3. Kullanıcının işletmesinin lisansı geçerli mi?
+        if (!await lisansService.LisansGecerliMiAsync(kullanici.IsletmeId))
+            return new ApiResponse<LoginResponse>(false, null, "Lisansınız sona erdi. Lütfen yöneticinizle iletişime geçin.", null);
 
         // 3. JWT token üret — içinde kullanıcı ID ve rolü şifreli şekilde taşır
         var token = jwtService.TokenOlustur(kullanici);

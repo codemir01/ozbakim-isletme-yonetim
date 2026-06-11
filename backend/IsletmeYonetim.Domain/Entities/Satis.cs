@@ -1,9 +1,10 @@
 namespace IsletmeYonetim.Domain.Entities;
 
 // Satislar tablosu — her satış işlemi bir kayıt oluşturur
-public class Satis
+public class Satis : ITenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid IsletmeId { get; set; }   // Hangi işletmeye (tenant) ait
     public Guid MusteriId { get; set; }   // FK: hangi müşteriye satıldı
     public Guid UrunId { get; set; }      // FK: hangi ürün satıldı
     public Guid PersonelId { get; set; }  // FK: satışı yapan personel (JWT'den gelir)

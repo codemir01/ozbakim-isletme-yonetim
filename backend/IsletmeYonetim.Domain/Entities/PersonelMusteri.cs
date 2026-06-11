@@ -1,7 +1,8 @@
 namespace IsletmeYonetim.Domain.Entities;
 
-public class PersonelMusteri
+public class PersonelMusteri : ITenantEntity
 {
+    public Guid IsletmeId { get; set; }   // Hangi işletmeye (tenant) ait
     public Guid PersonelId { get; set; }
     public Guid MusteriId { get; set; }
 

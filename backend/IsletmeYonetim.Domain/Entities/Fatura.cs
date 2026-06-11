@@ -1,8 +1,9 @@
 namespace IsletmeYonetim.Domain.Entities;
 
-public class Fatura
+public class Fatura : ITenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid IsletmeId { get; set; }   // Hangi işletmeye (tenant) ait
     public string FaturaNo { get; set; } = $"FTR-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..6].ToUpper()}";
     public Guid SatisId { get; set; }
     public Guid KullaniciId { get; set; }

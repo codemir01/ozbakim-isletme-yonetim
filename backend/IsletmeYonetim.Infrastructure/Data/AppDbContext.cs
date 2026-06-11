@@ -1,3 +1,5 @@
+using System.Reflection;
+using IsletmeYonetim.Application.Interfaces;
 using IsletmeYonetim.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -5,8 +7,14 @@ namespace IsletmeYonetim.Infrastructure.Data;
 
 // EF Core'un veritabanıyla konuştuğu merkezi sınıf.
 // Her DbSet bir tabloya karşılık gelir.
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+// MULTI-TENANCY: ITenantProvider ile aktif işletme okunur; ITenantEntity uygulayan
+// tüm tablolara otomatik global filtre eklenir ve kayıt eklenirken IsletmeId doldurulur.
+public class AppDbContext(DbContextOptions<AppDbContext> options, ITenantProvider tenant) : DbContext(options)
 {
+    // Query filter'larda kullanılan aktif işletme — EF bunu her sorguda parametre olarak değerlendirir
+    private Guid AktifIsletmeId => tenant.IsletmeId ?? Guid.Empty;
+
+    public DbSet<Isletme> Isletmeler => Set<Isletme>();
     public DbSet<Kullanici> Kullanicilar => Set<Kullanici>();
     public DbSet<Musteri> Musteriler => Set<Musteri>();
     public DbSet<Urun> Urunler => Set<Urun>();
@@ -119,5 +127,45 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasIndex(g => g.Durum).HasDatabaseName("ix_gorevler_durum");
         modelBuilder.Entity<BorcTahsilat>()
             .HasIndex(b => b.MusteriId).HasDatabaseName("ix_borctahsilatlar_musteriid");
+
+        // MULTI-TENANCY: ITenantEntity uygulayan TÜM entity'lere otomatik global sorgu filtresi.
+        // Böylece her SELECT yalnızca aktif işletmenin satırlarını getirir (veri izolasyonu).
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (typeof(ITenantEntity).IsAssignableFrom(entityType.ClrType))
+            {
+                typeof(AppDbContext)
+                    .GetMethod(nameof(TenantFiltresiUygula), BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .MakeGenericMethod(entityType.ClrType)
+                    .Invoke(this, [modelBuilder]);
+            }
+        }
+    }
+
+    // Belirli bir tenant entity tipine global filtre ekler (reflection ile çağrılır)
+    private void TenantFiltresiUygula<T>(ModelBuilder mb) where T : class, ITenantEntity
+        => mb.Entity<T>().HasQueryFilter(e => e.IsletmeId == AktifIsletmeId);
+
+    // Kayıt eklenirken IsletmeId'yi aktif işletmeye göre otomatik doldur
+    private void TenantIdAta()
+    {
+        var id = tenant.IsletmeId;
+        if (id is null || id == Guid.Empty) return;   // tenant yoksa dokunma (kayıt akışı IsletmeId'yi elle verir)
+
+        foreach (var entry in ChangeTracker.Entries<ITenantEntity>())
+            if (entry.State == EntityState.Added && entry.Entity.IsletmeId == Guid.Empty)
+                entry.Entity.IsletmeId = id.Value;
+    }
+
+    public override int SaveChanges()
+    {
+        TenantIdAta();
+        return base.SaveChanges();
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        TenantIdAta();
+        return base.SaveChangesAsync(cancellationToken);
     }
 }

@@ -31,6 +31,9 @@ builder.Services.AddHangfire(cfg => cfg
 builder.Services.AddHangfireServer();
 
 // 3. Servis kayıtları (DI)
+// Multi-tenancy: aktif işletmeyi JWT'den okuyan sağlayıcı + HttpContext erişimi
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ITenantProvider, IsletmeYonetim.API.Tenancy.TenantProvider>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<BakimBildirimJob>();
@@ -217,6 +220,33 @@ using (var scope = app.Services.CreateScope())
 
     db.Database.EnsureCreated();
 
+    // === MULTI-TENANCY bootstrap ===
+    // Isletmeler (tenant) tablosu + tüm tenant tablolarına IsletmeId kolonu (idempotent)
+    // + sabit bir DEMO işletmesi. Mevcut demo verisi bu işletmeye bağlanır (en sonda backfill).
+    db.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS "Isletmeler" (
+            "Id"              UUID      NOT NULL PRIMARY KEY,
+            "Ad"              TEXT      NOT NULL,
+            "AdminEposta"     TEXT      NOT NULL,
+            "OlusturmaTarihi" TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+
+        ALTER TABLE "Kullanicilar"      ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+        ALTER TABLE "Musteriler"        ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+        ALTER TABLE "Urunler"           ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+        ALTER TABLE "Satislar"          ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+        ALTER TABLE "BakimServisler"    ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+        ALTER TABLE "BakimGecmisi"      ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+        ALTER TABLE "Gorevler"          ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+        ALTER TABLE "PersonelMusteriler" ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+        ALTER TABLE "BorcTahsilatlar"   ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+        ALTER TABLE "GelirGiderler"     ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+
+        INSERT INTO "Isletmeler" ("Id","Ad","AdminEposta","OlusturmaTarihi")
+        SELECT '11111111-1111-1111-1111-111111111111','Demo İşletme','admin@isletme.com',NOW()
+        WHERE NOT EXISTS (SELECT 1 FROM "Isletmeler" WHERE "Id" = '11111111-1111-1111-1111-111111111111');
+    """);
+
     // Faturalar tablosunu doğru şemayla oluştur (yoksa)
     db.Database.ExecuteSqlRaw("""
         CREATE TABLE IF NOT EXISTS "Faturalar" (
@@ -226,19 +256,25 @@ using (var scope = app.Services.CreateScope())
             "KullaniciId"     UUID      NOT NULL REFERENCES "Kullanicilar"("Id"),
             "OlusturmaTarihi" TIMESTAMP NOT NULL DEFAULT NOW()
         );
+        ALTER TABLE "Faturalar" ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
     """);
 
-    // Demo kullanıcıları ekle (yoksa) — runtime'da BCrypt ile hash üret
+    // Demo kullanıcıları ekle (yoksa) — runtime'da BCrypt ile hash üret. Hepsi DEMO işletmesine bağlı.
+    var adminHash = global::BCrypt.Net.BCrypt.HashPassword("Admin123!");
     var satisHash = global::BCrypt.Net.BCrypt.HashPassword("Satis123!");
     var tekniHash = global::BCrypt.Net.BCrypt.HashPassword("Teknis123!");
 
     db.Database.ExecuteSql($"""
-        INSERT INTO "Kullanicilar" ("Id","Ad","Soyad","Eposta","SifreHash","Rol","Unvan","AktifMi","OlusturmaTarihi")
-        SELECT 'b1000000-0000-0000-0000-000000000002','Ayşe','Kaya','satis@isletme.com',{satisHash},'SalesConsultant','Satış Danışmanı',TRUE,NOW()
+        INSERT INTO "Kullanicilar" ("Id","IsletmeId","Ad","Soyad","Eposta","SifreHash","Rol","Unvan","AktifMi","OlusturmaTarihi")
+        SELECT 'a1000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','Ahmet','Yılmaz','admin@isletme.com',{adminHash},'Admin','Yönetici',TRUE,NOW()
+        WHERE NOT EXISTS (SELECT 1 FROM "Kullanicilar" WHERE "Eposta" = 'admin@isletme.com');
+
+        INSERT INTO "Kullanicilar" ("Id","IsletmeId","Ad","Soyad","Eposta","SifreHash","Rol","Unvan","AktifMi","OlusturmaTarihi")
+        SELECT 'b1000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','Ayşe','Kaya','satis@isletme.com',{satisHash},'SalesConsultant','Satış Danışmanı',TRUE,NOW()
         WHERE NOT EXISTS (SELECT 1 FROM "Kullanicilar" WHERE "Eposta" = 'satis@isletme.com');
 
-        INSERT INTO "Kullanicilar" ("Id","Ad","Soyad","Eposta","SifreHash","Rol","Unvan","AktifMi","OlusturmaTarihi")
-        SELECT 'c1000000-0000-0000-0000-000000000003','Mehmet','Demir','teknisyen@isletme.com',{tekniHash},'Technician','Saha Teknisyeni',TRUE,NOW()
+        INSERT INTO "Kullanicilar" ("Id","IsletmeId","Ad","Soyad","Eposta","SifreHash","Rol","Unvan","AktifMi","OlusturmaTarihi")
+        SELECT 'c1000000-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111','Mehmet','Demir','teknisyen@isletme.com',{tekniHash},'Technician','Saha Teknisyeni',TRUE,NOW()
         WHERE NOT EXISTS (SELECT 1 FROM "Kullanicilar" WHERE "Eposta" = 'teknisyen@isletme.com');
     """);
 
@@ -290,6 +326,7 @@ using (var scope = app.Services.CreateScope())
         );
         CREATE INDEX IF NOT EXISTS "ix_bildirimler_kullanici_okundu"
             ON "Bildirimler"("KullaniciId","OkunduMu");
+        ALTER TABLE "Bildirimler" ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
     """);
 
     // Lisans tablosunu oluştur ve demo lisansı ekle (yoksa)
@@ -302,10 +339,29 @@ using (var scope = app.Services.CreateScope())
             "BitisTarihi"     TIMESTAMP NOT NULL,
             "Aktif"           BOOLEAN   NOT NULL DEFAULT TRUE
         );
+        ALTER TABLE "Lisanslar" ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
 
-        INSERT INTO "Lisanslar" ("Id","IsletmeAdi","AdminEposta","BaslangicTarihi","BitisTarihi","Aktif")
-        SELECT gen_random_uuid(),'Demo İşletme','admin@isletme.com',NOW(),NOW() + INTERVAL '2 years',TRUE
+        INSERT INTO "Lisanslar" ("Id","IsletmeId","IsletmeAdi","AdminEposta","BaslangicTarihi","BitisTarihi","Aktif")
+        SELECT gen_random_uuid(),'11111111-1111-1111-1111-111111111111','Demo İşletme','admin@isletme.com',NOW(),NOW() + INTERVAL '2 years',TRUE
         WHERE NOT EXISTS (SELECT 1 FROM "Lisanslar");
+    """);
+
+    // === MULTI-TENANCY backfill ===
+    // Mevcut (tenant'sız) tüm satırları DEMO işletmesine bağla. Idempotent — sadece NULL olanlar.
+    db.Database.ExecuteSqlRaw("""
+        UPDATE "Kullanicilar"       SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "Musteriler"         SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "Urunler"            SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "Satislar"           SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "BakimServisler"     SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "BakimGecmisi"       SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "Gorevler"           SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "PersonelMusteriler" SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "BorcTahsilatlar"    SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "GelirGiderler"      SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "Faturalar"          SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "Bildirimler"        SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
+        UPDATE "Lisanslar"          SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
     """);
 }
 

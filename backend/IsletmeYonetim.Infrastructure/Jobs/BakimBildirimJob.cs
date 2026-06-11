@@ -11,6 +11,7 @@ public class BakimBildirimJob(
     AppDbContext db,
     IEmailService emailService,
     IBildirimService bildirimService,
+    ITenantProvider tenant,
     IConfiguration config,
     ILogger<BakimBildirimJob> logger)
 {
@@ -23,7 +24,10 @@ public class BakimBildirimJob(
 
         // Gecikmiş (tarihi geçmiş ama hâlâ yapılmamış) bakımlar EN ACİL olduğu için
         // bildirime onları da dahil ediyoruz. Üst sınır gelecek 7 gün.
+        // Job HTTP dışı (Hangfire) çalışır → aktif tenant yoktur; tüm işletmelerin
+        // bakımlarını görmek için global filtreyi atlıyoruz (IgnoreQueryFilters).
         var yaklasanlar = await db.BakimServisler
+            .IgnoreQueryFilters()
             .Include(b => b.Musteri)
             .Where(b => b.BakimYapilacakTarih.Date <= yediGunSonra)
             .OrderBy(b => b.BakimYapilacakTarih)
@@ -110,10 +114,11 @@ public class BakimBildirimJob(
             logger.LogError(ex, "Bakım bildirimi e-postası gönderilemedi. Alıcı: {Alici}", alici);
         }
 
-        // Admin kullanıcılarına uygulama içi bildirim gönder
+        // Admin kullanıcılarına uygulama içi bildirim gönder (tüm işletmelerden — filtre atlanır)
         var adminler = await db.Kullanicilar
+            .IgnoreQueryFilters()
             .Where(k => k.AktifMi && k.Rol == IsletmeYonetim.Domain.Enums.Rol.Admin)
-            .Select(k => k.Id)
+            .Select(k => new { k.Id, k.IsletmeId })
             .ToListAsync();
 
         var gecikmisSayisi = yaklasanlar.Count(b => b.BakimYapilacakTarih.Date < bugun);
@@ -121,9 +126,11 @@ public class BakimBildirimJob(
             ? $"{yaklasanlar.Count} bakım dikkat bekliyor ({gecikmisSayisi} tanesi gecikmiş)."
             : $"Önümüzdeki 7 günde {yaklasanlar.Count} bakım randevusu var.";
 
-        foreach (var adminId in adminler)
+        foreach (var admin in adminler)
         {
-            await bildirimService.CreateAsync(adminId, bildirimMesaji, BildirimTip.Uyari);
+            // Bildirim doğru işletmeye yazılsın diye o admin'in tenant'ını ayarla
+            tenant.SetIsletme(admin.IsletmeId);
+            await bildirimService.CreateAsync(admin.Id, bildirimMesaji, BildirimTip.Uyari);
         }
     }
 }

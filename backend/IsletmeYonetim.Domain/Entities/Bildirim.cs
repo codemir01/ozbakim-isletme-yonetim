@@ -1,9 +1,10 @@
 namespace IsletmeYonetim.Domain.Entities;
 
 // Kullanıcılara gönderilen uygulama içi bildirimler
-public class Bildirim
+public class Bildirim : ITenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid IsletmeId { get; set; }   // Hangi işletmeye (tenant) ait
     public Guid KullaniciId { get; set; }
     public Kullanici Kullanici { get; set; } = null!;
     public string Mesaj { get; set; } = string.Empty;

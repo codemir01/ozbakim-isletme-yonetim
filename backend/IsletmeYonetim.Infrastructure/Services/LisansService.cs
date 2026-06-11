@@ -28,4 +28,14 @@ public class LisansService(AppDbContext db) : ILisansService
         if (lisans is null || !lisans.Aktif) return false;
         return lisans.BitisTarihi >= DateTime.UtcNow;
     }
+
+    // Login'de: tenant henüz JWT'de olmadığı için global filtreyi atlayıp işletmeye göre bak
+    public async Task<bool> LisansGecerliMiAsync(Guid isletmeId)
+    {
+        var lisans = await db.Lisanslar
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(l => l.IsletmeId == isletmeId);
+        if (lisans is null || !lisans.Aktif) return false;
+        return lisans.BitisTarihi >= DateTime.UtcNow;
+    }
 }

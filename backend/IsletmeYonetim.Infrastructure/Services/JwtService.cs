@@ -24,6 +24,7 @@ public class JwtService(IConfiguration config) : IJwtService
             new Claim(JwtRegisteredClaimNames.Sub, kullanici.Id.ToString()),
             new Claim("ad", $"{kullanici.Ad} {kullanici.Soyad}"),
             new Claim("rol", kullanici.Rol.ToString()),
+            new Claim("isletmeId", kullanici.IsletmeId.ToString()), // Multi-tenancy: hangi işletme
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()) // Token'a benzersiz ID
         };
 

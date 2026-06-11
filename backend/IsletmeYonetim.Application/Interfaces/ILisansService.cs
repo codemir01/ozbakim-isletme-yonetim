@@ -5,6 +5,8 @@ namespace IsletmeYonetim.Application.Interfaces;
 public interface ILisansService
 {
     Task<ApiResponse<LisansDto>> GetLisansAsync();
-    // Login'de kullanılır: lisans geçerli mi?
+    // Aktif işletmenin (JWT tenant'ı) lisansı geçerli mi?
     Task<bool> LisansGecerliMiAsync();
+    // Login'de kullanılır: belirli bir işletmenin lisansı geçerli mi? (tenant henüz JWT'de yok)
+    Task<bool> LisansGecerliMiAsync(Guid isletmeId);
 }

@@ -3,9 +3,10 @@ using IsletmeYonetim.Domain.Enums;
 namespace IsletmeYonetim.Domain.Entities;
 
 // Urunler tablosu — satılabilen cihaz ve yedek parçalar
-public class Urun
+public class Urun : ITenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid IsletmeId { get; set; }   // Hangi işletmeye (tenant) ait
     public string UrunAdi { get; set; } = string.Empty;
     public UrunKategori Kategori { get; set; }  // Cihaz veya YedekParca
     public string StokKodu { get; set; } = string.Empty;

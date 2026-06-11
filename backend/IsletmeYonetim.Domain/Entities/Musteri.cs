@@ -2,9 +2,10 @@ namespace IsletmeYonetim.Domain.Entities;
 
 // Musteriler tablosunu temsil eden entity sınıfı.
 // EF Core bu sınıfa bakarak veritabanında "Musteriler" tablosunu oluşturur.
-public class Musteri
+public class Musteri : ITenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid(); // Birincil anahtar — her müşteri için benzersiz ID
+    public Guid IsletmeId { get; set; }   // Hangi işletmeye (tenant) ait
     public string Ad { get; set; } = string.Empty;
     public string Soyad { get; set; } = string.Empty;
     public string Telefon { get; set; } = string.Empty;
