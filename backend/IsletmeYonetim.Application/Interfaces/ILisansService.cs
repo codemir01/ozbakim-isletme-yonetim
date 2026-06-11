@@ -9,4 +9,6 @@ public interface ILisansService
     Task<bool> LisansGecerliMiAsync();
     // Login'de kullanılır: belirli bir işletmenin lisansı geçerli mi? (tenant henüz JWT'de yok)
     Task<bool> LisansGecerliMiAsync(Guid isletmeId);
+    // Abonelik satın al / uzat (simüle ödeme) — aktif işletmenin lisansını uzatır
+    Task<ApiResponse<LisansDto>> SatinAlAsync(string plan);
 }

@@ -9,3 +9,6 @@ public record LisansDto(
     bool Aktif,
     int KalanGun  // Hesaplanmış: BitisTarihi - Bugün
 );
+
+// Abonelik satın alma isteği — plan kodu (aylik / uc_aylik / yillik)
+public record LisansSatinAlRequest(string Plan);
