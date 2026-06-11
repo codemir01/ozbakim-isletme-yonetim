@@ -56,3 +56,12 @@ Thumbs.db
 .agents/
 .claude/settings.local.json
 skills-lock.json
+
+# AI servis gizli anahtarı
+ai-service/.env
+
+# ============================================================
+#  Çalışma zamanı yüklemeleri (teknisyen kanıt fotoğrafları vb.)
+#  — wwwroot/uploads runtime'da Program.cs tarafından oluşturulur
+# ============================================================
+backend/IsletmeYonetim.API/wwwroot/

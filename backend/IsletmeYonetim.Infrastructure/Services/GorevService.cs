@@ -33,7 +33,9 @@ public class GorevService(AppDbContext db, IBildirimService bildirimService) : I
             g.SonTeslimTarihi,
             g.OlusturmaTarihi,
             // Gecikti: son teslim tarihi geçmiş VE hâlâ tamamlanmamış
-            g.SonTeslimTarihi.Date < bugun && g.Durum != GorevDurum.Tamamlandi
+            g.SonTeslimTarihi.Date < bugun && g.Durum != GorevDurum.Tamamlandi,
+            g.TamamlanmaFotografi,
+            g.TamamlanmaTarihi
         )).ToList();
 
         return new ApiResponse<List<GorevListeDto>>(true, liste, null, null);
@@ -89,6 +91,20 @@ public class GorevService(AppDbContext db, IBildirimService bildirimService) : I
         gorev.Durum = yeniDurum;
         await db.SaveChangesAsync();
         return new ApiResponse<object>(true, null, null, "Durum güncellendi.");
+    }
+
+    // Teknisyen görevi kanıt fotoğrafıyla tamamlar: fotoğraf yolu kaydedilir, durum Tamamlandi olur.
+    public async Task<ApiResponse<object>> TamamlaAsync(Guid id, string fotografYolu)
+    {
+        var gorev = await db.Gorevler.FindAsync(id);
+        if (gorev is null)
+            return new ApiResponse<object>(false, null, "Görev bulunamadı.", null);
+
+        gorev.Durum = GorevDurum.Tamamlandi;
+        gorev.TamamlanmaFotografi = fotografYolu;
+        gorev.TamamlanmaTarihi = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return new ApiResponse<object>(true, null, null, "Görev fotoğrafla tamamlandı.");
     }
 
     public async Task<ApiResponse<List<PersonelOzetDto>>> GetPersonellerAsync()

@@ -69,13 +69,10 @@ export default function FaturaPage() {
 
   async function pdfIndir(id) {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5096/api/v1/faturalar/${id}/pdf`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      // Merkezi axios instance kullan — baseURL + token interceptor otomatik.
+      // Sabit URL yazmak yerine (port/host değişse kırılmaz) responseType: 'blob' ile PDF al.
+      const res = await api.get(`/faturalar/${id}/pdf`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
       a.download = `fatura-${id.toString().slice(0, 8).toUpperCase()}.pdf`;

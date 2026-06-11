@@ -171,6 +171,16 @@ if (app.Configuration.GetValue("AiService:AutoStart", true))
 // Middleware sırası (kritik)
 app.UseMiddleware<ExceptionMiddleware>(); // Global hata yakalayıcı — en başta olmalı
 
+// Yüklenen kanıt fotoğraflarını statik olarak servis et: /uploads/gorevler/xxx.jpg
+// wwwroot yoksa oluştur; explicit PhysicalFileProvider ile WebRootPath null olsa da çalışır.
+// Auth'tan ÖNCE — <img> etiketleri token göndermeden resmi yükleyebilsin.
+var wwwrootYolu = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+Directory.CreateDirectory(Path.Combine(wwwrootYolu, "uploads", "gorevler"));
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(wwwrootYolu)
+});
+
 // Swagger sadece geliştirme ortamında açık
 if (app.Environment.IsDevelopment())
 {
@@ -245,9 +255,27 @@ using (var scope = app.Services.CreateScope())
         CREATE INDEX IF NOT EXISTS "ix_borctahsilatlar_musteriid" ON "BorcTahsilatlar"("MusteriId");
     """);
 
-    // Gorevler tablosuna MusteriId kolonu ekle (yoksa — eski DB'lerde eksik olabilir)
+    // Gorevler tablosuna MusteriId + teknisyen kanıt fotoğrafı kolonları (yoksa — idempotent)
     db.Database.ExecuteSqlRaw("""
         ALTER TABLE "Gorevler" ADD COLUMN IF NOT EXISTS "MusteriId" UUID;
+        ALTER TABLE "Gorevler" ADD COLUMN IF NOT EXISTS "TamamlanmaFotografi" TEXT;
+        ALTER TABLE "Gorevler" ADD COLUMN IF NOT EXISTS "TamamlanmaTarihi" TIMESTAMPTZ;
+    """);
+
+    // Eski DB'lerde BorcTahsilatlar tablosunda artık entity'de olmayan "OlusturanId"
+    // kolonu NOT NULL kalmış olabilir. EF bu kolonu bilmediği için INSERT'e koymaz →
+    // satış/borç/tahsilat eklerken "null value violates not-null" hatası verir.
+    // NOT NULL kısıtını kaldırarak (varsa) bu kayıtların eklenmesini sağla — idempotent.
+    db.Database.ExecuteSqlRaw("""
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'BorcTahsilatlar' AND column_name = 'OlusturanId'
+            ) THEN
+                ALTER TABLE "BorcTahsilatlar" ALTER COLUMN "OlusturanId" DROP NOT NULL;
+            END IF;
+        END $$;
     """);
 
     // Bildirimler tablosunu oluştur (yoksa)

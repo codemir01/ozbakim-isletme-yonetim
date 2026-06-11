@@ -11,7 +11,9 @@ public record GorevListeDto(
     string MusteriAdSoyad,
     DateTime SonTeslimTarihi,
     DateTime OlusturmaTarihi,
-    bool Gecikti             // Son teslim tarihi geçtiyse ve tamamlanmadıysa true
+    bool Gecikti,            // Son teslim tarihi geçtiyse ve tamamlanmadıysa true
+    string? TamamlanmaFotografi, // Teknisyenin yüklediği kanıt fotoğrafı yolu (null = yok)
+    DateTime? TamamlanmaTarihi
 );
 
 // Yeni görev oluştururken frontend'den gelen veri

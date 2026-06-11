@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../../api/axios';
+import api, { API_ORIGIN } from '../../api/axios';
 import Layout from '../../components/Layout';
 
 const oncelikConfig = {
@@ -24,6 +24,7 @@ export default function GorevlerPage() {
   const [form, setForm] = useState({ gorevAdi: '', gorevDetayi: '', oncelik: 'Orta', atananId: '', musteriId: '', sonTeslimTarihi: '' });
   const [hata, setHata] = useState('');
   const [kaydediliyor, setKaydediliyor] = useState(false);
+  const [kanitFoto, setKanitFoto] = useState(null); // büyütülen kanıt fotoğrafı URL'si
 
   useEffect(() => { veriCek(); }, []);
 
@@ -204,6 +205,21 @@ export default function GorevlerPage() {
                             </button>
                           </div>
                         )}
+                        {/* Teknisyenin yüklediği iş kanıt fotoğrafı — büyütmek için tıkla */}
+                        {g.durum === 'Tamamlandi' && g.tamamlanmaFotografi && (
+                          <button
+                            onClick={() => setKanitFoto(API_ORIGIN + g.tamamlanmaFotografi)}
+                            title="İş kanıt fotoğrafını görüntüle"
+                            className="inline-flex items-center gap-2 group"
+                          >
+                            <img
+                              src={API_ORIGIN + g.tamamlanmaFotografi}
+                              alt="Kanıt"
+                              className="w-9 h-9 rounded-lg object-cover border border-slate-200 group-hover:ring-2 group-hover:ring-emerald-300 transition"
+                            />
+                            <span className="text-xs font-semibold text-emerald-600">Kanıt 📷</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -300,6 +316,17 @@ export default function GorevlerPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Kanıt fotoğrafı tam ekran görüntüleyici */}
+      {kanitFoto && (
+        <div
+          onClick={() => setKanitFoto(null)}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-50 p-6 cursor-zoom-out"
+        >
+          <img src={kanitFoto} alt="İş kanıt fotoğrafı" className="max-w-full max-h-[85vh] rounded-xl shadow-2xl" />
+          <p className="text-white/70 text-sm mt-4">Kapatmak için herhangi bir yere tıklayın</p>
         </div>
       )}
     </Layout>

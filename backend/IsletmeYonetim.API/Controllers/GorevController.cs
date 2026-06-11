@@ -9,7 +9,7 @@ namespace IsletmeYonetim.API.Controllers;
 [ApiController]
 [Route("api/v1/gorevler")]
 [Authorize]
-public class GorevController(IGorevService gorevService) : ControllerBase
+public class GorevController(IGorevService gorevService, IWebHostEnvironment env) : ControllerBase
 {
     // GET /api/v1/gorevler — tüm görevleri listele
     [HttpGet]
@@ -36,6 +36,34 @@ public class GorevController(IGorevService gorevService) : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> DurumGuncelle(Guid id, [FromBody] GorevDurumGuncelleRequest request)
     {
         var response = await gorevService.UpdateDurumAsync(id, request);
+        return response.Basarili ? Ok(response) : NotFound(response);
+    }
+
+    // PUT /api/v1/gorevler/{id}/tamamla — teknisyen kanıt fotoğrafı yükleyerek görevi tamamlar (multipart/form-data)
+    [HttpPut("{id}/tamamla")]
+    public async Task<ActionResult<ApiResponse<object>>> Tamamla(Guid id, IFormFile foto)
+    {
+        if (foto is null || foto.Length == 0)
+            return BadRequest(new ApiResponse<object>(false, null, "Kanıt fotoğrafı gerekli.", null));
+
+        // Sadece resim uzantılarına izin ver
+        var ext = Path.GetExtension(foto.FileName).ToLowerInvariant();
+        if (ext is not (".jpg" or ".jpeg" or ".png"))
+            return BadRequest(new ApiResponse<object>(false, null, "Sadece JPG veya PNG yüklenebilir.", null));
+
+        // wwwroot/uploads/gorevler altına benzersiz isimle kaydet
+        var webRoot = env.WebRootPath ?? Path.Combine(env.ContentRootPath, "wwwroot");
+        var klasor = Path.Combine(webRoot, "uploads", "gorevler");
+        Directory.CreateDirectory(klasor);
+
+        var dosyaAdi = $"{Guid.NewGuid()}{ext}";
+        var tamYol = Path.Combine(klasor, dosyaAdi);
+        await using (var stream = System.IO.File.Create(tamYol))
+            await foto.CopyToAsync(stream);
+
+        // DB'ye göreli URL kaydet (istemci kendi API adresiyle birleştirir)
+        var fotografYolu = $"/uploads/gorevler/{dosyaAdi}";
+        var response = await gorevService.TamamlaAsync(id, fotografYolu);
         return response.Basarili ? Ok(response) : NotFound(response);
     }
 

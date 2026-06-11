@@ -2,8 +2,11 @@ import axios from 'axios';
 
 // Tüm API isteklerinde kullanılan merkezi Axios instance.
 // baseURL sayesinde her yerde '/musteriler' yazmak yeterli, tam URL tekrarlanmaz.
+// Sunucu kökü — yüklenen resim dosyaları (örn. görev kanıt fotoğrafları) için kullanılır.
+export const API_ORIGIN = 'http://localhost:5096';
+
 const api = axios.create({
-  baseURL: 'http://localhost:5096/api/v1',
+  baseURL: `${API_ORIGIN}/api/v1`,
 });
 
 // Request Interceptor: Her istek gitmeden önce çalışır.

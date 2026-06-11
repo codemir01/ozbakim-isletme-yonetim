@@ -18,6 +18,10 @@ public class Gorev
     public DateTime SonTeslimTarihi { get; set; }
     public DateTime OlusturmaTarihi { get; set; } = DateTime.UtcNow;
 
+    // Teknisyen görevi tamamlarken çektiği "iş yapıldı" kanıt fotoğrafının yolu (ör. /uploads/gorevler/abc.jpg)
+    public string? TamamlanmaFotografi { get; set; }
+    public DateTime? TamamlanmaTarihi { get; set; }
+
     public Kullanici Atanan { get; set; } = null!;
     public Kullanici Olusturan { get; set; } = null!;
     public Musteri? Musteri { get; set; }  // Nullable — MusteriId null olabilir
