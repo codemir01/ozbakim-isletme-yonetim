@@ -17,19 +17,28 @@ export function AuthProvider({ children }) {
   async function girisYap(eposta, sifre) {
     // API isteği atıyoruz.
     const res = await api.post('/auth/login', { eposta, sifre });
-    const { token, ad, soyad, rol, kullaniciId } = res.data.veri;
+    const { token, ad, soyad, rol, kullaniciId, ilkGiris } = res.data.veri;
 
     // Backend'in ürettiği (JwtService'den gelen) şifreli token'ı tarayıcıya kaydederiz.
     // Artık api isteklerinde bu token başlıkta (Header - Authorization) yollanır.
     localStorage.setItem('token', token);
-    
+
     // UI'ı güncelleyecek bilgileri de state ve storage'a alıyoruz.
-    const k = { ad, soyad, rol, id: kullaniciId };
+    const k = { ad, soyad, rol, id: kullaniciId, ilkGiris: !!ilkGiris };
     localStorage.setItem('kullanici', JSON.stringify(k));
     setKullanici(k);
-    
-    // İşlem başarılıysa hocanın göreceği Dashboard sayfasına yönlendiriyoruz.
-    navigate('/dashboard');
+
+    // İlk giriş ise önce şifre belirleme ekranına, değilse Dashboard'a yönlendir.
+    navigate(ilkGiris ? '/ilk-sifre' : '/dashboard');
+  }
+
+  // İlk giriş şifresi belirlendikten sonra bayrağı temizle
+  function ilkGirisTamamlandi() {
+    setKullanici((onceki) => {
+      const k = { ...onceki, ilkGiris: false };
+      localStorage.setItem('kullanici', JSON.stringify(k));
+      return k;
+    });
   }
 
   // 2b. (Kayıt Fonksiyonu): Yeni işletme + admin oluşturur ve otomatik giriş yapar.
@@ -52,7 +61,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ kullanici, setKullanici, girisYap, kayitOl, cikisYap }}>
+    <AuthContext.Provider value={{ kullanici, setKullanici, girisYap, kayitOl, ilkGirisTamamlandi, cikisYap }}>
       {children}
     </AuthContext.Provider>
   );

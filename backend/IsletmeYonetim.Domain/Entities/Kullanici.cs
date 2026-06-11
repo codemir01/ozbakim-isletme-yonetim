@@ -15,5 +15,7 @@ public class Kullanici : ITenantEntity
     public string SifreHash { get; set; } = string.Empty; // BCrypt ile hashlenen şifre — düz metin saklanmaz
     public Rol Rol { get; set; }      // Admin, SalesConsultant, Technician, Worker
     public bool AktifMi { get; set; } = true; // Soft delete: silmek yerine pasife alıyoruz
+    // Admin tarafından oluşturulan elemanlar için true; ilk girişte şifre değiştirmeye zorlanır
+    public bool IlkGiris { get; set; } = false;
     public DateTime OlusturmaTarihi { get; set; } = DateTime.UtcNow;
 }

@@ -38,4 +38,12 @@ public class ProfilController(IProfilService profilService) : ControllerBase
         var response = await profilService.UpdateSifreAsync(KullaniciId, request);
         return response.Basarili ? Ok(response) : BadRequest(response);
     }
+
+    // PUT /api/v1/profil/ilk-sifre — ilk girişte şifre belirle (eski şifre sorulmaz)
+    [HttpPut("ilk-sifre")]
+    public async Task<ActionResult<ApiResponse<object>>> IlkSifre([FromBody] IlkSifreRequest request)
+    {
+        var response = await profilService.IlkSifreBelirleAsync(KullaniciId, request);
+        return response.Basarili ? Ok(response) : BadRequest(response);
+    }
 }

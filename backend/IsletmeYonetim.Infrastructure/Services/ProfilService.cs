@@ -49,4 +49,22 @@ public class ProfilService(AppDbContext db) : IProfilService
         await db.SaveChangesAsync();
         return new ApiResponse<object>(true, null, null, "Şifre başarıyla güncellendi.");
     }
+
+    public async Task<ApiResponse<object>> IlkSifreBelirleAsync(Guid kullaniciId, IlkSifreRequest request)
+    {
+        var k = await db.Kullanicilar.FindAsync(kullaniciId);
+        if (k is null)
+            return new ApiResponse<object>(false, null, "Kullanıcı bulunamadı.", null);
+
+        if (!k.IlkGiris)
+            return new ApiResponse<object>(false, null, "Şifreniz zaten belirlenmiş.", null);
+
+        if (string.IsNullOrWhiteSpace(request.YeniSifre) || request.YeniSifre.Length < 6)
+            return new ApiResponse<object>(false, null, "Yeni şifre en az 6 karakter olmalıdır.", null);
+
+        k.SifreHash = BCrypt.Net.BCrypt.HashPassword(request.YeniSifre);
+        k.IlkGiris = false;   // Artık normal kullanıcı
+        await db.SaveChangesAsync();
+        return new ApiResponse<object>(true, null, null, "Şifreniz belirlendi.");
+    }
 }

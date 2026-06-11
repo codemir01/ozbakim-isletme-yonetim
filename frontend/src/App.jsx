@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import LoginPage from './pages/Login/LoginPage';
 import KayitPage from './pages/Login/KayitPage';
+import IlkSifrePage from './pages/Login/IlkSifrePage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 import MusterilerPage from './pages/Musteriler/MusterilerPage';
 import MusteriDetayPage from './pages/Musteriler/MusteriDetayPage';
@@ -28,6 +29,7 @@ export default function App() {
           {/* Login sayfası herkese açık */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/kayit" element={<KayitPage />} />
+          <Route path="/ilk-sifre" element={<IlkSifrePage />} />
 
           {/* Aşağıdaki sayfalar PrivateRoute ile koruma altında.
               Token olmadan bu URL'lere gidilirse /login'e yönlendirilir. */}

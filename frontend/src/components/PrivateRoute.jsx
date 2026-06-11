@@ -6,5 +6,8 @@ import { useAuth } from '../context/AuthContext';
 // App.jsx'te tüm korumalı Route'lar bu bileşenle sarılmıştır.
 export default function PrivateRoute({ children }) {
   const { kullanici } = useAuth();
-  return kullanici ? children : <Navigate to="/login" replace />;
+  if (!kullanici) return <Navigate to="/login" replace />;
+  // İlk giriş yapan eleman önce şifresini belirlemeli — başka sayfaya geçemez
+  if (kullanici.ilkGiris) return <Navigate to="/ilk-sifre" replace />;
+  return children;
 }

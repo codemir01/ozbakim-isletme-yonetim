@@ -23,3 +23,6 @@ public record SifreGuncelleRequest(
     string EskiSifre,
     string YeniSifre
 );
+
+// PUT /api/v1/profil/ilk-sifre — ilk girişte şifre belirle (eski şifre sorulmaz)
+public record IlkSifreRequest(string YeniSifre);

@@ -232,6 +232,7 @@ using (var scope = app.Services.CreateScope())
         );
 
         ALTER TABLE "Kullanicilar"      ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
+        ALTER TABLE "Kullanicilar"      ADD COLUMN IF NOT EXISTS "IlkGiris" BOOLEAN NOT NULL DEFAULT FALSE;
         ALTER TABLE "Musteriler"        ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
         ALTER TABLE "Urunler"           ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
         ALTER TABLE "Satislar"          ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;

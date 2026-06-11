@@ -34,7 +34,8 @@ public class KullaniciService(AppDbContext db) : IKullaniciService
             Telefon = request.Telefon,
             SifreHash = BCrypt.Net.BCrypt.HashPassword(request.Sifre),
             Unvan = request.Unvan,
-            Rol = request.Rol
+            Rol = request.Rol,
+            IlkGiris = true,   // Eleman ilk girişte kendi şifresini belirlemeye zorlanır
         };
 
         db.Kullanicilar.Add(kullanici);

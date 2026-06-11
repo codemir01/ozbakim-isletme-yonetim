@@ -30,5 +30,6 @@ public record LoginResponse(
     string Ad,
     string Soyad,
     string Rol,         // "Admin", "Technician" vb.
-    Guid KullaniciId
+    Guid KullaniciId,
+    bool IlkGiris = false  // true ise frontend kullanıcıyı şifre belirlemeye zorlar
 );

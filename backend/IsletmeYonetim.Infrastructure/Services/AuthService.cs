@@ -94,7 +94,8 @@ public class AuthService(AppDbContext db, IJwtService jwtService, ILisansService
             kullanici.Ad,
             kullanici.Soyad,
             kullanici.Rol.ToString(),
-            kullanici.Id
+            kullanici.Id,
+            kullanici.IlkGiris
         );
 
         return new ApiResponse<LoginResponse>(true, response, null, "Giriş başarılı.");
