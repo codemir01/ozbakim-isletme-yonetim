@@ -119,7 +119,7 @@ export default function DashboardScreen({ navigation }) {
         <Text style={s.aiIkon}>🔍</Text>
         <View style={{ flex: 1 }}>
           <Text style={s.aiBaslik}>AI Arıza Tespiti</Text>
-          <Text style={s.aiAlt}>Cihazın fotoğrafını çek, yapay zeka arızayı söylesin</Text>
+          <Text style={s.aiAlt}>Fotoğraf çek veya yazarak sor, yapay zeka usta arızayı bulsun</Text>
         </View>
         <Text style={s.aiOk}>›</Text>
       </TouchableOpacity>
