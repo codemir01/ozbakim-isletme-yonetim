@@ -23,7 +23,8 @@ public class KullaniciService(AppDbContext db) : IKullaniciService
 
     public async Task<ApiResponse<KullaniciListeDto>> CreateKullaniciAsync(KullaniciOlusturRequest request)
     {
-        if (await db.Kullanicilar.AnyAsync(k => k.Eposta == request.Eposta))
+        // E-posta GLOBAL benzersiz olmalı (login e-postayı tüm işletmeler arasında tekil sayar) → filtreyi atla
+        if (await db.Kullanicilar.IgnoreQueryFilters().AnyAsync(k => k.Eposta == request.Eposta))
             return new ApiResponse<KullaniciListeDto>(false, null, "Bu e-posta zaten kayıtlı.", null);
 
         var kullanici = new Kullanici
@@ -50,11 +51,13 @@ public class KullaniciService(AppDbContext db) : IKullaniciService
 
     public async Task<ApiResponse<object>> UpdateKullaniciAsync(Guid id, KullaniciGuncelleRequest request)
     {
-        var kullanici = await db.Kullanicilar.FindAsync(id);
+        // FirstOrDefaultAsync tenant filtresini uygular (FindAsync ATLAR) → başka işletmenin kullanıcısı düzenlenemez
+        var kullanici = await db.Kullanicilar.FirstOrDefaultAsync(k => k.Id == id);
         if (kullanici is null)
             return new ApiResponse<object>(false, null, "Kullanıcı bulunamadı.", null);
 
-        if (await db.Kullanicilar.AnyAsync(k => k.Eposta == request.Eposta && k.Id != id))
+        // E-posta çakışması GLOBAL kontrol edilir (tüm işletmeler arasında tekil)
+        if (await db.Kullanicilar.IgnoreQueryFilters().AnyAsync(k => k.Eposta == request.Eposta && k.Id != id))
             return new ApiResponse<object>(false, null, "Bu e-posta başka bir kullanıcıya ait.", null);
 
         kullanici.Ad = request.Ad;
@@ -71,7 +74,8 @@ public class KullaniciService(AppDbContext db) : IKullaniciService
 
     public async Task<ApiResponse<object>> DeleteKullaniciAsync(Guid id)
     {
-        var kullanici = await db.Kullanicilar.FindAsync(id);
+        // FirstOrDefaultAsync tenant filtresini uygular (FindAsync ATLAR)
+        var kullanici = await db.Kullanicilar.FirstOrDefaultAsync(k => k.Id == id);
         if (kullanici is null)
             return new ApiResponse<object>(false, null, "Kullanıcı bulunamadı.", null);
 

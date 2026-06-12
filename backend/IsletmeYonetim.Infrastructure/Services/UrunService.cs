@@ -43,7 +43,8 @@ public class UrunService(AppDbContext db) : IUrunService
 
     public async Task<ApiResponse<object>> UpdateUrunAsync(Guid id, UrunGuncelleRequest request)
     {
-        var urun = await db.Urunler.FindAsync(id);
+        // FirstOrDefaultAsync tenant filtresini uygular (FindAsync ATLAR) → başka işletmenin ürünü düzenlenemez
+        var urun = await db.Urunler.FirstOrDefaultAsync(u => u.Id == id && !u.SilindiMi);
         if (urun is null)
             return new ApiResponse<object>(false, null, "Ürün bulunamadı.", null);
 

@@ -81,7 +81,8 @@ public class GorevService(AppDbContext db, IBildirimService bildirimService) : I
 
     public async Task<ApiResponse<object>> UpdateDurumAsync(Guid id, GorevDurumGuncelleRequest request)
     {
-        var gorev = await db.Gorevler.FindAsync(id);
+        // FirstOrDefaultAsync tenant filtresini uygular (FindAsync ATLAR) → başka işletmenin görevi güncellenemez
+        var gorev = await db.Gorevler.FirstOrDefaultAsync(g => g.Id == id);
         if (gorev is null)
             return new ApiResponse<object>(false, null, "Görev bulunamadı.", null);
 
@@ -96,7 +97,8 @@ public class GorevService(AppDbContext db, IBildirimService bildirimService) : I
     // Teknisyen görevi kanıt fotoğrafıyla tamamlar: fotoğraf yolu kaydedilir, durum Tamamlandi olur.
     public async Task<ApiResponse<object>> TamamlaAsync(Guid id, string fotografYolu)
     {
-        var gorev = await db.Gorevler.FindAsync(id);
+        // FirstOrDefaultAsync tenant filtresini uygular (FindAsync ATLAR) → başka işletmenin görevi tamamlanamaz
+        var gorev = await db.Gorevler.FirstOrDefaultAsync(g => g.Id == id);
         if (gorev is null)
             return new ApiResponse<object>(false, null, "Görev bulunamadı.", null);
 

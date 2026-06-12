@@ -70,7 +70,8 @@ public class GelirGiderService(AppDbContext db) : IGelirGiderService
 
     public async Task<ApiResponse<object>> DeleteAsync(Guid id)
     {
-        var kayit = await db.GelirGiderler.FindAsync(id);
+        // FirstOrDefaultAsync tenant filtresini uygular (FindAsync ATLAR) → başka işletmenin kaydı silinemez
+        var kayit = await db.GelirGiderler.FirstOrDefaultAsync(g => g.Id == id);
         if (kayit is null)
             return new ApiResponse<object>(false, null, "Kayıt bulunamadı.", null);
 

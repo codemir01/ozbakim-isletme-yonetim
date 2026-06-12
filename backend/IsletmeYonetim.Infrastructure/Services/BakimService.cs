@@ -85,7 +85,8 @@ public class BakimService(AppDbContext db) : IBakimService
 
     public async Task<ApiResponse<object>> GecmisEkleAsync(Guid id, BakimGecmisEkleRequest request, Guid personelId)
     {
-        var bakim = await db.BakimServisler.FindAsync(id);
+        // FirstOrDefaultAsync tenant filtresini uygular (FindAsync ATLAR) → başka işletmenin bakım kartına geçmiş eklenemez
+        var bakim = await db.BakimServisler.FirstOrDefaultAsync(b => b.Id == id);
         if (bakim is null)
             return new ApiResponse<object>(false, null, "Kayıt bulunamadı.", null);
 
