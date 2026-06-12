@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import api from '../../api/axios';
 
-// Abonelik planları (simüle ödeme — gerçek para alınmaz)
+// Abonelik planları (ödeme iyzico test ortamı üzerinden — gerçek para çekilmez)
 const PLANLAR = [
   { kod: 'aylik', ad: 'Aylık', gun: 30, fiyat: '₺499', alt: 'ayda', vurgu: false },
   { kod: 'uc_aylik', ad: '3 Aylık', gun: 90, fiyat: '₺1.299', alt: '3 ayda', vurgu: true, etiket: 'Popüler' },
@@ -15,6 +15,19 @@ export default function LisansPage() {
   const [seciliPlan, setSeciliPlan] = useState(null); // ödeme modalı için
   const [odeniyor, setOdeniyor] = useState(false);
   const [basari, setBasari] = useState('');
+  const [hata, setHata] = useState('');
+  // iyzico'nun RESMİ test kartı önceden dolu (gerçek kart değil, kimsenin parası değil).
+  // Kaynak: https://docs.iyzico.com/ek-bilgiler/test-kartlari  (Halkbank test kartı)
+  const [kart, setKart] = useState({
+    kartSahibi: 'John Doe',
+    kartNo: '5528 7900 0000 0008',
+    skt: '12/30',
+    cvc: '123',
+  });
+
+  function kartGuncelle(alan, deger) {
+    setKart((k) => ({ ...k, [alan]: deger }));
+  }
 
   function lisansYukle() {
     return api.get('/lisans').then(res => setLisans(res.data.veri)).catch(() => {});
@@ -26,15 +39,28 @@ export default function LisansPage() {
 
   async function odemeYap(e) {
     e.preventDefault();
+    setHata('');
     setOdeniyor(true);
     try {
-      const res = await api.post('/lisans/satin-al', { plan: seciliPlan.kod });
+      // SKT "AA/YY" → ay "12", yıl "2030"
+      const [ay, yy] = kart.skt.split('/').map((s) => s.trim());
+      const payload = {
+        plan: seciliPlan.kod,
+        kart: {
+          kartSahibi: kart.kartSahibi,
+          kartNo: kart.kartNo.replace(/\s/g, ''),
+          sonAy: ay,
+          sonYil: yy?.length === 2 ? `20${yy}` : yy,
+          cvc: kart.cvc,
+        },
+      };
+      const res = await api.post('/lisans/satin-al', payload);
       setLisans(res.data.veri);
       setSeciliPlan(null);
       setBasari(res.data.mesaj || 'Ödeme alındı, aboneliğiniz uzatıldı.');
       setTimeout(() => setBasari(''), 5000);
-    } catch {
-      alert('Ödeme işlenemedi.');
+    } catch (err) {
+      setHata(err.response?.data?.hata || err.response?.data?.mesaj || 'Ödeme işlenemedi. Kart bilgilerini kontrol edin.');
     } finally {
       setOdeniyor(false);
     }
@@ -145,7 +171,7 @@ export default function LisansPage() {
 
       {/* Simüle Ödeme Modalı */}
       {seciliPlan && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => !odeniyor && setSeciliPlan(null)}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => { if (!odeniyor) { setSeciliPlan(null); setHata(''); } }}>
           <div className="bg-white rounded-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-slate-900">Ödeme — {seciliPlan.ad} Plan</h3>
             <p className="text-sm text-slate-500 mt-1">{seciliPlan.fiyat} · {seciliPlan.gun} gün eklenecek</p>
@@ -153,29 +179,40 @@ export default function LisansPage() {
             <form onSubmit={odemeYap} className="mt-5 space-y-3">
               <div>
                 <label className="text-xs font-semibold text-slate-600">Kart Üzerindeki İsim</label>
-                <input defaultValue="AHMET YILMAZ" className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                <input value={kart.kartSahibi} onChange={(e) => kartGuncelle('kartSahibi', e.target.value)} required
+                  className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600">Kart Numarası</label>
-                <input defaultValue="4242 4242 4242 4242" className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                <input value={kart.kartNo} onChange={(e) => kartGuncelle('kartNo', e.target.value)} required
+                  className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">SKT</label>
-                  <input defaultValue="12/28" className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  <label className="text-xs font-semibold text-slate-600">SKT (AA/YY)</label>
+                  <input value={kart.skt} onChange={(e) => kartGuncelle('skt', e.target.value)} required placeholder="12/30"
+                    className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-600">CVV</label>
-                  <input defaultValue="123" className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  <input value={kart.cvc} onChange={(e) => kartGuncelle('cvc', e.target.value)} required
+                    className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-400 bg-slate-50 rounded-lg p-2.5">
-                🔒 Bu bir <b>simülasyon</b>dur — gerçek ödeme alınmaz. Production'da iyzico/PayTR entegre edilir.
+              {hata && (
+                <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2.5 font-medium">
+                  ⚠️ {hata}
+                </p>
+              )}
+
+              <p className="text-[11px] text-slate-500 bg-slate-50 rounded-lg p-2.5">
+                🔒 Ödeme <b>iyzico</b> altyapısı (test ortamı) üzerinden alınır. Form, iyzico'nun
+                resmi <b>test kartıyla</b> dolu — gerçek para çekilmez.
               </p>
 
               <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setSeciliPlan(null)} disabled={odeniyor}
+                <button type="button" onClick={() => { setSeciliPlan(null); setHata(''); }} disabled={odeniyor}
                   className="flex-1 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold">İptal</button>
                 <button type="submit" disabled={odeniyor}
                   className="flex-1 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold disabled:opacity-60">

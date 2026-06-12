@@ -18,11 +18,11 @@ public class LisansController(ILisansService lisansService) : ControllerBase
         return response.Basarili ? Ok(response) : NotFound(response);
     }
 
-    // POST /api/v1/lisans/satin-al — abonelik satın al / uzat (simüle ödeme) [Admin only]
+    // POST /api/v1/lisans/satin-al — abonelik satın al / uzat (iyzico ile gerçek ödeme) [Admin only]
     [HttpPost("satin-al")]
     public async Task<ActionResult<ApiResponse<LisansDto>>> SatinAl([FromBody] LisansSatinAlRequest request)
     {
-        var response = await lisansService.SatinAlAsync(request.Plan);
+        var response = await lisansService.SatinAlAsync(request.Plan, request.Kart);
         return response.Basarili ? Ok(response) : BadRequest(response);
     }
 }

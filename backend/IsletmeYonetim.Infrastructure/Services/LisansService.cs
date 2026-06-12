@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace IsletmeYonetim.Infrastructure.Services;
 
-public class LisansService(AppDbContext db) : ILisansService
+public class LisansService(AppDbContext db, IOdemeService odemeService) : ILisansService
 {
     public async Task<ApiResponse<LisansDto>> GetLisansAsync()
     {
@@ -39,23 +39,31 @@ public class LisansService(AppDbContext db) : ILisansService
         return lisans.BitisTarihi >= DateTime.UtcNow;
     }
 
-    // Plan kodu → eklenecek gün sayısı (simüle ödeme; gerçek ödeme entegrasyonu production işi)
-    private static readonly Dictionary<string, int> PlanGun = new()
+    // Plan kodu → (eklenecek gün, ₺ fiyat). Fiyatlar frontend'deki plan kartlarıyla aynı.
+    private static readonly Dictionary<string, (int Gun, decimal Fiyat)> Planlar = new()
     {
-        ["aylik"] = 30,
-        ["uc_aylik"] = 90,
-        ["yillik"] = 365,
+        ["aylik"] = (30, 499m),
+        ["uc_aylik"] = (90, 1299m),
+        ["yillik"] = (365, 4990m),
     };
 
-    public async Task<ApiResponse<LisansDto>> SatinAlAsync(string plan)
+    public async Task<ApiResponse<LisansDto>> SatinAlAsync(string plan, KartBilgisi kart)
     {
-        if (!PlanGun.TryGetValue(plan, out var gun))
+        if (!Planlar.TryGetValue(plan, out var bilgi))
             return new ApiResponse<LisansDto>(false, null, "Geçersiz plan.", null);
+        var (gun, fiyat) = bilgi;
 
         // Aktif işletmenin lisansı (global filtre tenant'a göre kısıtlar)
         var lisans = await db.Lisanslar.FirstOrDefaultAsync();
         if (lisans is null)
             return new ApiResponse<LisansDto>(false, null, "Lisans kaydı bulunamadı.", null);
+
+        // ÖNCE ödemeyi al — başarısızsa lisansa dokunma
+        var odeme = await odemeService.OdemeAlAsync(
+            kart, fiyat, $"Lisans aboneliği ({gun} gün)",
+            lisans.IsletmeAdi, lisans.AdminEposta);
+        if (!odeme.Basarili)
+            return new ApiResponse<LisansDto>(false, null, odeme.HataMesaji ?? "Ödeme alınamadı.", null);
 
         // Kalan günler kaybolmasın: mevcut bitiş ileride ise oradan, değilse bugünden uzat.
         // PostgreSQL timestamptz UTC bekler → SpecifyKind ile Kind=Utc garanti edilir.

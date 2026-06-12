@@ -49,6 +49,7 @@ builder.Services.AddScoped<IGelirGiderService, GelirGiderService>();
 builder.Services.AddScoped<IFaturaService, FaturaService>();
 builder.Services.AddScoped<IProfilService, ProfilService>();
 builder.Services.AddScoped<IBildirimService, BildirimService>();
+builder.Services.AddScoped<IOdemeService, IyzicoOdemeService>();
 builder.Services.AddScoped<ILisansService, LisansService>();
 builder.Services.AddScoped<IRaporService, RaporService>();
 
