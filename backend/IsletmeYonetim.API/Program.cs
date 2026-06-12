@@ -300,18 +300,20 @@ using (var scope = app.Services.CreateScope())
         ALTER TABLE "Gorevler" ADD COLUMN IF NOT EXISTS "TamamlanmaTarihi" TIMESTAMPTZ;
     """);
 
-    // Eski DB'lerde BorcTahsilatlar tablosunda artık entity'de olmayan "OlusturanId"
-    // kolonu NOT NULL kalmış olabilir. EF bu kolonu bilmediği için INSERT'e koymaz →
-    // satış/borç/tahsilat eklerken "null value violates not-null" hatası verir.
-    // NOT NULL kısıtını kaldırarak (varsa) bu kayıtların eklenmesini sağla — idempotent.
+    // Eski DB'lerde "OlusturanId" kolonu artık entity'de olmadığı halde NOT NULL kalmış
+    // olabilir. EF bu kolonu bilmediği için INSERT'e koymaz → kayıt eklerken
+    // "null value violates not-null" hatası verir. BorcTahsilatlar VE GelirGiderler
+    // tablolarında bu kısıtı kaldır (varsa) — idempotent.
     db.Database.ExecuteSqlRaw("""
         DO $$
         BEGIN
-            IF EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'BorcTahsilatlar' AND column_name = 'OlusturanId'
-            ) THEN
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'BorcTahsilatlar' AND column_name = 'OlusturanId') THEN
                 ALTER TABLE "BorcTahsilatlar" ALTER COLUMN "OlusturanId" DROP NOT NULL;
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'GelirGiderler' AND column_name = 'OlusturanId') THEN
+                ALTER TABLE "GelirGiderler" ALTER COLUMN "OlusturanId" DROP NOT NULL;
             END IF;
         END $$;
     """);
