@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { renkler } from './src/theme';
 import LoginScreen from './src/screens/LoginScreen';
+import IlkSifreScreen from './src/screens/IlkSifreScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import MusterilerScreen from './src/screens/MusterilerScreen';
 import SatislarScreen from './src/screens/SatislarScreen';
@@ -88,11 +89,13 @@ function Kok() {
     );
   }
 
-  return (
-    <NavigationContainer>
-      {kullanici ? <AnaYigin /> : <LoginScreen />}
-    </NavigationContainer>
-  );
+  // Giriş yok → Login. İlk giriş (admin'in eklediği eleman) → zorunlu şifre belirleme. Aksi → ana uygulama.
+  let icerik;
+  if (!kullanici) icerik = <LoginScreen />;
+  else if (kullanici.ilkGiris) icerik = <IlkSifreScreen />;
+  else icerik = <AnaYigin />;
+
+  return <NavigationContainer>{icerik}</NavigationContainer>;
 }
 
 export default function App() {

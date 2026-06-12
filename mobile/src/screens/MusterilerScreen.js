@@ -22,6 +22,15 @@ export default function MusterilerScreen() {
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const [hata, setHata] = useState('');
 
+  // Müşteri detay modalı (borç/tahsilat)
+  const [detay, setDetay] = useState(null);       // seçili müşteri
+  const [gecmis, setGecmis] = useState([]);        // borç/tahsilat geçmişi
+  const [islemTipi, setIslemTipi] = useState(null); // 'borc' | 'tahsilat'
+  const [miktar, setMiktar] = useState('');
+  const [aciklama, setAciklama] = useState('');
+  const [islemKaydediliyor, setIslemKaydediliyor] = useState(false);
+  const [islemHata, setIslemHata] = useState('');
+
   const veriCek = useCallback(async () => {
     try {
       const res = await api.get('/musteriler?sayfa=1&boyut=200');
@@ -60,6 +69,59 @@ export default function MusterilerScreen() {
     }
   }
 
+  // --- Müşteri detay (borç/tahsilat) ---
+  async function detayAc(m) {
+    setDetay(m);
+    setIslemTipi(null);
+    setMiktar('');
+    setAciklama('');
+    setIslemHata('');
+    setGecmis([]);
+    try {
+      const res = await api.get(`/musteriler/${m.id}/borc-gecmis`);
+      setGecmis(res.data.veri ?? []);
+    } catch (e) { console.error('Geçmiş hata', e); }
+  }
+
+  function detayKapat() {
+    setDetay(null);
+    setIslemTipi(null);
+  }
+
+  // İşlem sonrası müşterinin güncel bakiyesini + geçmişi + listeyi tazele
+  async function detayTazele(id) {
+    try {
+      const [mRes, gRes] = await Promise.all([
+        api.get(`/musteriler/${id}`),
+        api.get(`/musteriler/${id}/borc-gecmis`),
+      ]);
+      if (mRes.data.veri) setDetay(mRes.data.veri);
+      setGecmis(gRes.data.veri ?? []);
+    } catch (e) { console.error(e); }
+    veriCek();
+  }
+
+  async function islemKaydet() {
+    const tutar = parseFloat(miktar);
+    if (!tutar || tutar <= 0) { setIslemHata('Geçerli bir tutar girin.'); return; }
+    setIslemKaydediliyor(true);
+    setIslemHata('');
+    try {
+      const endpoint = islemTipi === 'borc'
+        ? `/musteriler/${detay.id}/borc-ekle`
+        : `/musteriler/${detay.id}/tahsilat-ekle`;
+      await api.post(endpoint, { miktar: tutar, aciklama });
+      setIslemTipi(null);
+      setMiktar('');
+      setAciklama('');
+      await detayTazele(detay.id);
+    } catch (e) {
+      setIslemHata(apiHata(e, 'İşlem kaydedilemedi.'));
+    } finally {
+      setIslemKaydediliyor(false);
+    }
+  }
+
   function silOnay(m) {
     Alert.alert('Müşteriyi Sil', `${m.ad} ${m.soyad} silinsin mi?`, [
       { text: 'İptal', style: 'cancel' },
@@ -88,7 +150,7 @@ export default function MusterilerScreen() {
     const bakiye = (item.toplamBorc || 0) - (item.toplamTahsilat || 0);
     const avatarBg = avatarRenkleri[index % avatarRenkleri.length];
     return (
-      <TouchableOpacity style={s.kart} onLongPress={() => silOnay(item)} delayLongPress={400} activeOpacity={0.8}>
+      <TouchableOpacity style={s.kart} onPress={() => detayAc(item)} onLongPress={() => silOnay(item)} delayLongPress={400} activeOpacity={0.8}>
         <View style={s.ust}>
           <View style={[s.avatar, { backgroundColor: avatarBg }]}>
             <Text style={s.avatarYazi}>{(item.ad?.[0] || '') + (item.soyad?.[0] || '')}</Text>
@@ -114,6 +176,7 @@ export default function MusterilerScreen() {
             <Text style={[s.finansDeger, { color: renkler.yesil }]}>{formatPara(item.toplamTahsilat)}</Text>
           </View>
         </View>
+        <Text style={s.ipucu}>Dokun: detay/tahsilat · Basılı tut: sil</Text>
       </TouchableOpacity>
     );
   }
@@ -121,6 +184,8 @@ export default function MusterilerScreen() {
   if (yukleniyor) {
     return <View style={s.merkez}><ActivityIndicator size="large" color={renkler.indigo} /></View>;
   }
+
+  const detayBakiye = detay ? (detay.toplamBorc || 0) - (detay.toplamTahsilat || 0) : 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: renkler.arka }}>
@@ -154,10 +219,7 @@ export default function MusterilerScreen() {
 
       {/* Yeni müşteri modalı */}
       <Modal visible={modal} animationType="slide" transparent onRequestClose={modalKapat}>
-        <KeyboardAvoidingView
-          style={s.modalArka}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <KeyboardAvoidingView style={s.modalArka} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={s.modalKart}>
             <View style={s.modalBaslikBar}>
               <Text style={s.modalBaslik}>Yeni Müşteri</Text>
@@ -178,6 +240,85 @@ export default function MusterilerScreen() {
               <TouchableOpacity style={s.kaydetBtn} onPress={kaydet} disabled={kaydediliyor}>
                 {kaydediliyor ? <ActivityIndicator color="#fff" /> : <Text style={s.kaydetYazi}>Kaydet</Text>}
               </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Müşteri detay (borç/tahsilat) modalı */}
+      <Modal visible={!!detay} animationType="slide" transparent onRequestClose={detayKapat}>
+        <KeyboardAvoidingView style={s.modalArka} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={s.modalKart}>
+            <View style={s.modalBaslikBar}>
+              <Text style={s.modalBaslik}>{detay?.ad} {detay?.soyad}</Text>
+              <TouchableOpacity onPress={detayKapat}><Text style={s.kapat}>✕</Text></TouchableOpacity>
+            </View>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {/* Bakiye özeti */}
+              <View style={s.bakiyeBox}>
+                <View style={s.bakiyeKol}>
+                  <Text style={s.bakiyeEtiket}>Borç</Text>
+                  <Text style={[s.bakiyeDeger, { color: renkler.kirmizi }]}>{formatPara(detay?.toplamBorc)}</Text>
+                </View>
+                <View style={s.bakiyeKol}>
+                  <Text style={s.bakiyeEtiket}>Tahsilat</Text>
+                  <Text style={[s.bakiyeDeger, { color: renkler.yesil }]}>{formatPara(detay?.toplamTahsilat)}</Text>
+                </View>
+                <View style={s.bakiyeKol}>
+                  <Text style={s.bakiyeEtiket}>Kalan</Text>
+                  <Text style={[s.bakiyeDeger, { color: detayBakiye > 0 ? '#c2410c' : renkler.yesil }]}>{formatPara(Math.max(0, detayBakiye))}</Text>
+                </View>
+              </View>
+
+              {/* İşlem butonları / formu */}
+              {!islemTipi ? (
+                <View style={s.islemBtnSatir}>
+                  <TouchableOpacity style={[s.islemBtn, s.borcBtn]} onPress={() => { setIslemTipi('borc'); setIslemHata(''); }}>
+                    <Text style={s.borcBtnYazi}>+ Borç Ekle</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[s.islemBtn, s.tahsilatBtn]} onPress={() => { setIslemTipi('tahsilat'); setIslemHata(''); }}>
+                    <Text style={s.tahsilatBtnYazi}>+ Tahsilat Al</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={s.islemForm}>
+                  <Text style={s.islemBaslik}>{islemTipi === 'borc' ? 'Borç Tutarı (₺)' : 'Alınan Ödeme (₺)'}</Text>
+                  <TextInput style={s.input} value={miktar} onChangeText={setMiktar} placeholder="0.00" placeholderTextColor={renkler.metinGri} keyboardType="numeric" autoFocus />
+                  <Text style={[s.etiket, { marginTop: 8 }]}>Açıklama (opsiyonel)</Text>
+                  <TextInput style={s.input} value={aciklama} onChangeText={setAciklama} placeholder="Örn: cihaz servisi" placeholderTextColor={renkler.metinGri} />
+                  {islemHata ? <Text style={s.hata}>{islemHata}</Text> : null}
+                  <View style={s.islemBtnSatir}>
+                    <TouchableOpacity style={[s.islemBtn, { backgroundColor: '#f1f5f9' }]} onPress={() => setIslemTipi(null)} disabled={islemKaydediliyor}>
+                      <Text style={{ color: renkler.metinSoluk, fontWeight: '700' }}>İptal</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.islemBtn, { backgroundColor: islemTipi === 'borc' ? renkler.kirmizi : renkler.yesil }]} onPress={islemKaydet} disabled={islemKaydediliyor}>
+                      {islemKaydediliyor ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800' }}>Onayla</Text>}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* İşlem geçmişi */}
+              <Text style={[s.etiket, { marginTop: 16 }]}>İşlem Geçmişi</Text>
+              {gecmis.length === 0 ? (
+                <Text style={s.bosGecmis}>Henüz işlem yok.</Text>
+              ) : (
+                gecmis.map((g) => (
+                  <View key={g.id} style={[s.gecmisSatir, { backgroundColor: g.tip === 'Borc' ? '#fef2f2' : '#ecfdf5' }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.gecmisTip, { color: g.tip === 'Borc' ? '#be123c' : '#047857' }]}>
+                        {g.tip === 'Borc' ? '↑ Borç' : '↓ Tahsilat'}
+                      </Text>
+                      {g.aciklama ? <Text style={s.gecmisAciklama}>{g.aciklama}</Text> : null}
+                      <Text style={s.gecmisTarih}>{new Date(g.tarih).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })}</Text>
+                    </View>
+                    <Text style={[s.gecmisMiktar, { color: g.tip === 'Borc' ? '#be123c' : '#047857' }]}>
+                      {g.tip === 'Borc' ? '+' : '-'}{formatPara(g.miktar)}
+                    </Text>
+                  </View>
+                ))
+              )}
+              <View style={{ height: 12 }} />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -210,6 +351,7 @@ const s = StyleSheet.create({
   finansKutu: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 10 },
   finansEtiket: { fontSize: 11, color: renkler.metinSoluk, fontWeight: '600' },
   finansDeger: { fontSize: 14, fontWeight: '800', marginTop: 3 },
+  ipucu: { fontSize: 10, color: renkler.metinGri, marginTop: 10, textAlign: 'center' },
   bos: { textAlign: 'center', color: renkler.metinGri, marginTop: 40 },
   // FAB
   fab: {
@@ -218,7 +360,7 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
   fabYazi: { color: '#fff', fontSize: 30, fontWeight: '300', marginTop: -2 },
-  // Modal
+  // Modal ortak
   modalArka: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalKart: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '88%' },
   modalBaslikBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
@@ -229,4 +371,23 @@ const s = StyleSheet.create({
   hata: { color: renkler.kirmizi, backgroundColor: renkler.kirmiziArka, padding: 10, borderRadius: 10, marginTop: 12, fontSize: 13 },
   kaydetBtn: { backgroundColor: renkler.indigo, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18, marginBottom: 10 },
   kaydetYazi: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  // Detay
+  bakiyeBox: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  bakiyeKol: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, alignItems: 'center' },
+  bakiyeEtiket: { fontSize: 11, color: renkler.metinSoluk, fontWeight: '600' },
+  bakiyeDeger: { fontSize: 15, fontWeight: '800', marginTop: 4 },
+  islemBtnSatir: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  islemBtn: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  borcBtn: { backgroundColor: '#fff', borderWidth: 2, borderColor: '#fecaca' },
+  borcBtnYazi: { color: '#be123c', fontWeight: '800' },
+  tahsilatBtn: { backgroundColor: renkler.yesil },
+  tahsilatBtnYazi: { color: '#fff', fontWeight: '800' },
+  islemForm: { marginTop: 14, backgroundColor: '#f8fafc', borderRadius: 14, padding: 14 },
+  islemBaslik: { fontSize: 13, fontWeight: '700', color: renkler.metin, marginBottom: 6 },
+  bosGecmis: { color: renkler.metinGri, fontSize: 13, textAlign: 'center', paddingVertical: 14 },
+  gecmisSatir: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 12, marginTop: 8 },
+  gecmisTip: { fontSize: 13, fontWeight: '800' },
+  gecmisAciklama: { fontSize: 12, color: renkler.metinSoluk, marginTop: 2 },
+  gecmisTarih: { fontSize: 11, color: renkler.metinGri, marginTop: 3 },
+  gecmisMiktar: { fontSize: 15, fontWeight: '800' },
 });

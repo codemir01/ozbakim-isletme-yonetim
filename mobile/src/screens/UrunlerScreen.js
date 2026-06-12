@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TextInput, FlatList, StyleSheet,
   ActivityIndicator, RefreshControl, TouchableOpacity, Modal,
-  KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView, Alert,
 } from 'react-native';
 import api, { apiHata } from '../api/client';
 import { renkler, formatPara } from '../theme';
@@ -19,6 +19,12 @@ export default function UrunlerScreen() {
   const [form, setForm] = useState(bosForm);
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const [hata, setHata] = useState('');
+
+  // Düzenleme modalı
+  const [duzenle, setDuzenle] = useState(null); // seçili ürün
+  const [dForm, setDForm] = useState(null);
+  const [dKaydediliyor, setDKaydediliyor] = useState(false);
+  const [dHata, setDHata] = useState('');
 
   const veriCek = useCallback(async () => {
     try {
@@ -64,6 +70,59 @@ export default function UrunlerScreen() {
     }
   }
 
+  // --- Düzenle / Sil ---
+  function duzenleAc(u) {
+    setDuzenle(u);
+    setDForm({
+      urunAdi: u.urunAdi, kategori: u.kategori, stokKodu: u.stokKodu,
+      stokAdedi: String(u.stokAdedi), alisFiyati: String(u.alisFiyati), durum: u.durum,
+    });
+    setDHata('');
+  }
+
+  async function guncelle() {
+    if (!dForm.urunAdi.trim() || !dForm.stokKodu.trim()) {
+      setDHata('Ürün adı ve stok kodu zorunludur.');
+      return;
+    }
+    setDKaydediliyor(true);
+    setDHata('');
+    try {
+      await api.put(`/urunler/${duzenle.id}`, {
+        urunAdi: dForm.urunAdi,
+        kategori: dForm.kategori,
+        stokKodu: dForm.stokKodu,
+        stokAdedi: Number(dForm.stokAdedi) || 0,
+        alisFiyati: Number(dForm.alisFiyati) || 0,
+        durum: dForm.durum,
+      });
+      setDuzenle(null);
+      veriCek();
+    } catch (e) {
+      setDHata(apiHata(e, 'Ürün güncellenemedi.'));
+    } finally {
+      setDKaydediliyor(false);
+    }
+  }
+
+  function silOnay() {
+    Alert.alert('Ürünü Sil', `${duzenle.urunAdi} silinsin mi?`, [
+      { text: 'İptal', style: 'cancel' },
+      {
+        text: 'Sil', style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.delete(`/urunler/${duzenle.id}`);
+            setDuzenle(null);
+            veriCek();
+          } catch (e) {
+            Alert.alert('Hata', apiHata(e, 'Ürün silinemedi.'));
+          }
+        },
+      },
+    ]);
+  }
+
   const filtreli = arama.trim()
     ? urunler.filter((u) =>
         (u.urunAdi || '').toLowerCase().includes(arama.toLowerCase()) ||
@@ -77,7 +136,7 @@ export default function UrunlerScreen() {
     const kritik = u.stokAdedi < 5;
     const cihazMi = u.kategori === 'Cihaz';
     return (
-      <View style={s.kart}>
+      <TouchableOpacity style={s.kart} onPress={() => duzenleAc(u)} activeOpacity={0.8}>
         <View style={[s.ikon, { backgroundColor: cihazMi ? '#dbeafe' : '#ede9fe' }]}>
           <Text style={{ fontSize: 18 }}>{cihazMi ? '📦' : '🔧'}</Text>
         </View>
@@ -98,12 +157,25 @@ export default function UrunlerScreen() {
             </Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   }
 
   if (yukleniyor) {
     return <View style={s.merkez}><ActivityIndicator size="large" color={renkler.indigo} /></View>;
+  }
+
+  // Kategori seçici (hem yeni hem düzenle modalında kullanılır)
+  function KategoriSecici({ deger, onSec }) {
+    return (
+      <View style={s.kategoriSatir}>
+        {[['Cihaz', 'Cihaz'], ['YedekParca', 'Yedek Parça']].map(([k, l]) => (
+          <TouchableOpacity key={k} style={[s.kategoriBtn, deger === k && s.kategoriAktif]} onPress={() => onSec(k)}>
+            <Text style={[s.kategoriBtnYazi, deger === k && { color: '#fff' }]}>{l}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
   }
 
   return (
@@ -150,6 +222,7 @@ export default function UrunlerScreen() {
         <Text style={s.fabYazi}>+</Text>
       </TouchableOpacity>
 
+      {/* Yeni ürün modalı */}
       <Modal visible={modal} animationType="slide" transparent onRequestClose={modalKapat}>
         <KeyboardAvoidingView style={s.modalArka} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={s.modalKart}>
@@ -162,17 +235,7 @@ export default function UrunlerScreen() {
               <TextInput style={s.input} value={form.urunAdi} onChangeText={(t) => setForm({ ...form, urunAdi: t })} placeholder="Örn. Arçelik Buzdolabı" placeholderTextColor={renkler.metinGri} />
 
               <Text style={s.etiket}>Kategori</Text>
-              <View style={s.kategoriSatir}>
-                {[['Cihaz', 'Cihaz'], ['YedekParca', 'Yedek Parça']].map(([k, l]) => (
-                  <TouchableOpacity
-                    key={k}
-                    style={[s.kategoriBtn, form.kategori === k && s.kategoriAktif]}
-                    onPress={() => setForm({ ...form, kategori: k })}
-                  >
-                    <Text style={[s.kategoriBtnYazi, form.kategori === k && { color: '#fff' }]}>{l}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <KategoriSecici deger={form.kategori} onSec={(k) => setForm({ ...form, kategori: k })} />
 
               <Text style={s.etiket}>Stok Kodu *</Text>
               <TextInput style={s.input} value={form.stokKodu} onChangeText={(t) => setForm({ ...form, stokKodu: t })} placeholder="Örn. BZ-100" placeholderTextColor={renkler.metinGri} autoCapitalize="characters" />
@@ -194,6 +257,59 @@ export default function UrunlerScreen() {
                 {kaydediliyor ? <ActivityIndicator color="#fff" /> : <Text style={s.kaydetYazi}>Kaydet</Text>}
               </TouchableOpacity>
             </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Düzenle modalı */}
+      <Modal visible={!!duzenle} animationType="slide" transparent onRequestClose={() => setDuzenle(null)}>
+        <KeyboardAvoidingView style={s.modalArka} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={s.modalKart}>
+            <View style={s.modalBaslikBar}>
+              <Text style={s.modalBaslik}>Ürün Düzenle</Text>
+              <TouchableOpacity onPress={() => setDuzenle(null)}><Text style={s.kapat}>✕</Text></TouchableOpacity>
+            </View>
+            {dForm && (
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <Text style={s.etiket}>Ürün Adı *</Text>
+                <TextInput style={s.input} value={dForm.urunAdi} onChangeText={(t) => setDForm({ ...dForm, urunAdi: t })} placeholderTextColor={renkler.metinGri} />
+
+                <Text style={s.etiket}>Kategori</Text>
+                <KategoriSecici deger={dForm.kategori} onSec={(k) => setDForm({ ...dForm, kategori: k })} />
+
+                <Text style={s.etiket}>Stok Kodu *</Text>
+                <TextInput style={s.input} value={dForm.stokKodu} onChangeText={(t) => setDForm({ ...dForm, stokKodu: t })} placeholderTextColor={renkler.metinGri} autoCapitalize="characters" />
+
+                <View style={s.ikiliInput}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.etiket}>Stok Adedi</Text>
+                    <TextInput style={s.input} value={String(dForm.stokAdedi)} onChangeText={(t) => setDForm({ ...dForm, stokAdedi: t })} placeholderTextColor={renkler.metinGri} keyboardType="numeric" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.etiket}>Alış Fiyatı (₺)</Text>
+                    <TextInput style={s.input} value={String(dForm.alisFiyati)} onChangeText={(t) => setDForm({ ...dForm, alisFiyati: t })} placeholderTextColor={renkler.metinGri} keyboardType="numeric" />
+                  </View>
+                </View>
+
+                <Text style={s.etiket}>Durum</Text>
+                <View style={s.kategoriSatir}>
+                  {[['Aktif', 'Aktif'], ['Pasif', 'Pasif']].map(([k, l]) => (
+                    <TouchableOpacity key={k} style={[s.kategoriBtn, dForm.durum === k && s.kategoriAktif]} onPress={() => setDForm({ ...dForm, durum: k })}>
+                      <Text style={[s.kategoriBtnYazi, dForm.durum === k && { color: '#fff' }]}>{l}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {dHata ? <Text style={s.hata}>{dHata}</Text> : null}
+
+                <TouchableOpacity style={s.kaydetBtn} onPress={guncelle} disabled={dKaydediliyor}>
+                  {dKaydediliyor ? <ActivityIndicator color="#fff" /> : <Text style={s.kaydetYazi}>Güncelle</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={s.silBtn} onPress={silOnay}>
+                  <Text style={s.silYazi}>🗑 Ürünü Sil</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -245,6 +361,8 @@ const s = StyleSheet.create({
   kategoriAktif: { backgroundColor: renkler.indigo, borderColor: renkler.indigo },
   kategoriBtnYazi: { fontSize: 14, fontWeight: '700', color: renkler.metinSoluk },
   hata: { color: renkler.kirmizi, backgroundColor: renkler.kirmiziArka, padding: 10, borderRadius: 10, marginTop: 12, fontSize: 13 },
-  kaydetBtn: { backgroundColor: renkler.indigo, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18, marginBottom: 10 },
+  kaydetBtn: { backgroundColor: renkler.indigo, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18 },
   kaydetYazi: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  silBtn: { backgroundColor: renkler.kirmiziArka, borderWidth: 1, borderColor: '#fecaca', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 10, marginBottom: 10 },
+  silYazi: { color: renkler.kirmizi, fontSize: 14, fontWeight: '700' },
 });

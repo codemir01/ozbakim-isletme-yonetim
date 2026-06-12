@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, Modal, TextInput,
+  KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
-import api from '../api/client';
+import api, { apiHata } from '../api/client';
 import { renkler } from '../theme';
 
 // Gün durumuna göre renk/etiket (web'deki durumBilgi ile aynı mantık)
@@ -22,6 +23,8 @@ const riskRenk = {
   'Hata': { arka: '#f1f5f9', yazi: '#64748b' },
 };
 
+const bugunISO = () => new Date().toISOString().split('T')[0];
+
 export default function BakimScreen() {
   const [bakimlar, setBakimlar] = useState([]);
   const [yukleniyor, setYukleniyor] = useState(true);
@@ -30,6 +33,12 @@ export default function BakimScreen() {
   // Her kart için risk sonucu ve yükleniyor durumu (id -> değer)
   const [riskler, setRiskler] = useState({});
   const [riskYukleniyor, setRiskYukleniyor] = useState({});
+
+  // "Bakım Yapıldı" kayıt modalı
+  const [gecmisModal, setGecmisModal] = useState(null); // bakım id
+  const [gecmisForm, setGecmisForm] = useState({ aciklama: '', yapilmaTarihi: bugunISO(), yeniBakimAraligiGun: '180' });
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+  const [gecmisHata, setGecmisHata] = useState('');
 
   const veriCek = useCallback(async () => {
     try {
@@ -54,6 +63,34 @@ export default function BakimScreen() {
       setRiskler((p) => ({ ...p, [id]: { risk: 'Hata', olasilik: 0 } }));
     } finally {
       setRiskYukleniyor((p) => ({ ...p, [id]: false }));
+    }
+  }
+
+  function gecmisAc(id) {
+    setGecmisModal(id);
+    setGecmisForm({ aciklama: '', yapilmaTarihi: bugunISO(), yeniBakimAraligiGun: '180' });
+    setGecmisHata('');
+  }
+
+  async function gecmisKaydet() {
+    if (!gecmisForm.aciklama.trim()) {
+      setGecmisHata('Yapılan işlem açıklaması zorunludur.');
+      return;
+    }
+    setKaydediliyor(true);
+    setGecmisHata('');
+    try {
+      await api.post(`/bakim/${gecmisModal}/gecmis`, {
+        aciklama: gecmisForm.aciklama,
+        yapilmaTarihi: gecmisForm.yapilmaTarihi + 'T00:00:00Z',
+        yeniBakimAraligiGun: Number(gecmisForm.yeniBakimAraligiGun) || 180,
+      });
+      setGecmisModal(null);
+      veriCek();
+    } catch (e) {
+      setGecmisHata(apiHata(e, 'Bakım kaydı eklenemedi.'));
+    } finally {
+      setKaydediliyor(false);
     }
   }
 
@@ -112,6 +149,11 @@ export default function BakimScreen() {
               : <Text style={s.riskBtnYazi}>🤖 AI Risk Tahmini Al</Text>}
           </TouchableOpacity>
         )}
+
+        {/* Bakım Yapıldı — teknisyenin asıl aksiyonu */}
+        <TouchableOpacity style={s.yapildiBtn} onPress={() => gecmisAc(b.id)}>
+          <Text style={s.yapildiYazi}>✓ Bakım Yapıldı</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -162,7 +204,7 @@ export default function BakimScreen() {
         data={filtreli}
         keyExtractor={(b) => String(b.id)}
         renderItem={({ item }) => <Kart item={item} />}
-        contentContainerStyle={{ padding: 16, paddingTop: 4 }}
+        contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 20 }}
         refreshControl={
           <RefreshControl
             refreshing={yenileniyor}
@@ -171,6 +213,54 @@ export default function BakimScreen() {
         }
         ListEmptyComponent={<Text style={s.bos}>Bu filtrede kayıt yok.</Text>}
       />
+
+      {/* Bakım Yapıldı Modalı */}
+      <Modal visible={!!gecmisModal} animationType="slide" transparent onRequestClose={() => setGecmisModal(null)}>
+        <KeyboardAvoidingView style={s.modalArka} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={s.modalKart}>
+            <View style={s.modalBaslikBar}>
+              <Text style={s.modalBaslik}>Bakım Yapıldı</Text>
+              <TouchableOpacity onPress={() => setGecmisModal(null)}><Text style={s.kapat}>✕</Text></TouchableOpacity>
+            </View>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={s.etiket}>Yapılan İşlemler *</Text>
+              <TextInput
+                style={[s.input, { height: 80, textAlignVertical: 'top' }]}
+                value={gecmisForm.aciklama}
+                onChangeText={(t) => setGecmisForm({ ...gecmisForm, aciklama: t })}
+                placeholder="Yapılan bakım ve değiştirilen parçalar..."
+                placeholderTextColor={renkler.metinGri}
+                multiline
+              />
+
+              <Text style={s.etiket}>Bakım Tarihi (YYYY-AA-GG)</Text>
+              <TextInput
+                style={s.input}
+                value={gecmisForm.yapilmaTarihi}
+                onChangeText={(t) => setGecmisForm({ ...gecmisForm, yapilmaTarihi: t })}
+                placeholder="2026-06-12"
+                placeholderTextColor={renkler.metinGri}
+              />
+
+              <Text style={s.etiket}>Sonraki Bakım Aralığı (Gün)</Text>
+              <TextInput
+                style={s.input}
+                value={String(gecmisForm.yeniBakimAraligiGun)}
+                onChangeText={(t) => setGecmisForm({ ...gecmisForm, yeniBakimAraligiGun: t })}
+                placeholder="180"
+                placeholderTextColor={renkler.metinGri}
+                keyboardType="numeric"
+              />
+
+              {gecmisHata ? <Text style={s.hata}>{gecmisHata}</Text> : null}
+
+              <TouchableOpacity style={s.kaydetBtn} onPress={gecmisKaydet} disabled={kaydediliyor}>
+                {kaydediliyor ? <ActivityIndicator color="#fff" /> : <Text style={s.kaydetYazi}>Kaydet</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -204,5 +294,18 @@ const s = StyleSheet.create({
   riskBtnYazi: { color: renkler.indigo, fontWeight: '700', fontSize: 13 },
   riskKutu: { marginTop: 12, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
   riskYazi: { fontWeight: '800', fontSize: 13 },
+  yapildiBtn: { marginTop: 10, backgroundColor: renkler.yesil, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
+  yapildiYazi: { color: '#fff', fontWeight: '800', fontSize: 14 },
   bos: { textAlign: 'center', color: renkler.metinGri, marginTop: 40 },
+  // Modal
+  modalArka: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalKart: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '88%' },
+  modalBaslikBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalBaslik: { fontSize: 18, fontWeight: '800', color: renkler.metin },
+  kapat: { fontSize: 18, color: renkler.metinSoluk, padding: 4 },
+  etiket: { fontSize: 13, fontWeight: '600', color: renkler.metin, marginBottom: 6, marginTop: 10 },
+  input: { borderWidth: 1, borderColor: renkler.kenar, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: renkler.metin, backgroundColor: '#f8fafc' },
+  hata: { color: renkler.kirmizi, backgroundColor: renkler.kirmiziArka, padding: 10, borderRadius: 10, marginTop: 12, fontSize: 13 },
+  kaydetBtn: { backgroundColor: renkler.indigo, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18, marginBottom: 10 },
+  kaydetYazi: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

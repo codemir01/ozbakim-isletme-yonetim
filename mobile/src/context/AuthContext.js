@@ -22,11 +22,30 @@ export function AuthProvider({ children }) {
   // Backend'deki AuthController ile haberleşir.
   async function girisYap(eposta, sifre) {
     const res = await api.post('/auth/login', { eposta, sifre });
-    const { token, ad, soyad, rol, kullaniciId } = res.data.veri;
+    const { token, ad, soyad, rol, kullaniciId, ilkGiris } = res.data.veri;
     await AsyncStorage.setItem('token', token);
-    const k = { ad, soyad, rol, id: kullaniciId };
+    // ilkGiris: admin'in eklediği eleman ilk girişte şifre belirlemeye zorlanır
+    const k = { ad, soyad, rol, id: kullaniciId, ilkGiris: !!ilkGiris };
     await AsyncStorage.setItem('kullanici', JSON.stringify(k));
     setKullanici(k);
+  }
+
+  // İlk giriş şifresi belirlendikten sonra bayrağı temizle
+  async function ilkGirisTamamlandi() {
+    setKullanici((onceki) => {
+      const k = { ...onceki, ilkGiris: false };
+      AsyncStorage.setItem('kullanici', JSON.stringify(k));
+      return k;
+    });
+  }
+
+  // Profil güncellenince context'teki ad/soyad'ı da tazele (Dashboard selamı vb.)
+  async function guncelleKullanici(parcali) {
+    setKullanici((onceki) => {
+      const k = { ...onceki, ...parcali };
+      AsyncStorage.setItem('kullanici', JSON.stringify(k));
+      return k;
+    });
   }
 
   async function cikisYap() {
@@ -35,7 +54,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ kullanici, hazir, girisYap, cikisYap }}>
+    <AuthContext.Provider value={{ kullanici, hazir, girisYap, cikisYap, ilkGirisTamamlandi, guncelleKullanici }}>
       {children}
     </AuthContext.Provider>
   );
