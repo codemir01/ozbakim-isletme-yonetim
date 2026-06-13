@@ -16,6 +16,7 @@ Not: veri_seti.csv yoksa, veri_seti_uret.py ile gerçekçi bir veri seti otomati
      Gerçek bir firma verisi gelirse, aynı sütun başlıklarıyla CSV'yi değiştirmeniz yeterli.
 """
 
+import joblib
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -27,7 +28,8 @@ ETIKETLER    = ["Düşük", "Orta", "Yüksek"]
 # CSV'deki metin risk etiketini modelin beklediği sayıya çevirir
 SINIF_KODU   = {"Düşük": 0, "Orta": 1, "Yüksek": 2}
 OZELLIKLER   = ["cihaz_yasi", "bakim_sayisi", "son_bakim_gun"]
-VERI_DOSYASI = Path(__file__).parent / "veri_seti.csv"
+VERI_DOSYASI  = Path(__file__).parent / "veri_seti.csv"
+MODEL_DOSYASI = Path(__file__).parent / "model.pkl"  # eğitilmiş model diske kaydedilir
 
 
 def _veri_yukle() -> pd.DataFrame:
@@ -84,7 +86,29 @@ def _model_egit() -> RandomForestClassifier:
     return clf
 
 
-model: RandomForestClassifier = _model_egit()
+def _model_hazirla() -> RandomForestClassifier:
+    """
+    Modeli akıllıca hazırlar:
+      - Diskte eğitilmiş model.pkl varsa VE veri setinden daha yeniyse → diskten yükle
+        (milisaniyeler sürer, her açılışta yeniden eğitmeyiz).
+      - Yoksa veya veri seti güncellenmişse → yeniden eğit ve .pkl olarak kaydet.
+    Böylece veri 100.000+ satıra çıksa bile servis saniyede ayağa kalkar.
+    """
+    if (
+        MODEL_DOSYASI.exists()
+        and VERI_DOSYASI.exists()
+        and MODEL_DOSYASI.stat().st_mtime >= VERI_DOSYASI.stat().st_mtime
+    ):
+        print(f"[AI-Service] Eğitilmiş model diskten yüklendi → {MODEL_DOSYASI.name}")
+        return joblib.load(MODEL_DOSYASI)
+
+    clf = _model_egit()
+    joblib.dump(clf, MODEL_DOSYASI)
+    print(f"[AI-Service] Model eğitildi ve kaydedildi → {MODEL_DOSYASI.name}")
+    return clf
+
+
+model: RandomForestClassifier = _model_hazirla()
 
 
 def tahmin_et(cihaz_yasi: int, bakim_sayisi: int, son_bakim_gun: int) -> dict:

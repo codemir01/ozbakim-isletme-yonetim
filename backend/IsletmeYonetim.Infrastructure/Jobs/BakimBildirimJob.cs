@@ -39,6 +39,56 @@ public class BakimBildirimJob(
             return;
         }
 
+        // VERİ İZOLASYONU (multi-tenant): her işletmenin admin e-posta adresi.
+        // Bakımlar işletmeye göre gruplanıp YALNIZCA o işletmenin admin'ine gönderilir;
+        // böylece bir işletmenin müşteri bilgileri başka işletmeye sızmaz.
+        var isletmeEpostalari = await db.Isletmeler
+            .IgnoreQueryFilters()
+            .ToDictionaryAsync(i => i.Id, i => i.AdminEposta);
+
+        foreach (var grup in yaklasanlar.GroupBy(b => b.IsletmeId))
+        {
+            // İşletmenin admin e-postası yoksa (beklenmez) config'teki yedek adrese düş
+            if (!isletmeEpostalari.TryGetValue(grup.Key, out var alici) || string.IsNullOrWhiteSpace(alici))
+                alici = config["EmailSettings:AliciEmail"];
+            if (string.IsNullOrWhiteSpace(alici)) continue;
+
+            var liste = grup.OrderBy(b => b.BakimYapilacakTarih).ToList();
+            var html = BildirimHtmlOlustur(liste, bugun);
+            try
+            {
+                await emailService.GonderAsync(alici, $"Bakım Bildirimi — {liste.Count} yaklaşan bakım", html);
+                logger.LogInformation("İşletme {IsletmeId}: {Count} yaklaşan bakım için bildirim gönderildi.", grup.Key, liste.Count);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Bakım bildirimi e-postası gönderilemedi. İşletme: {IsletmeId}, Alıcı: {Alici}", grup.Key, alici);
+            }
+        }
+
+        // Admin kullanıcılarına uygulama içi bildirim gönder (tüm işletmelerden — filtre atlanır)
+        var adminler = await db.Kullanicilar
+            .IgnoreQueryFilters()
+            .Where(k => k.AktifMi && k.Rol == IsletmeYonetim.Domain.Enums.Rol.Admin)
+            .Select(k => new { k.Id, k.IsletmeId })
+            .ToListAsync();
+
+        var gecikmisSayisi = yaklasanlar.Count(b => b.BakimYapilacakTarih.Date < bugun);
+        var bildirimMesaji = gecikmisSayisi > 0
+            ? $"{yaklasanlar.Count} bakım dikkat bekliyor ({gecikmisSayisi} tanesi gecikmiş)."
+            : $"Önümüzdeki 7 günde {yaklasanlar.Count} bakım randevusu var.";
+
+        foreach (var admin in adminler)
+        {
+            // Bildirim doğru işletmeye yazılsın diye o admin'in tenant'ını ayarla
+            tenant.SetIsletme(admin.IsletmeId);
+            await bildirimService.CreateAsync(admin.Id, bildirimMesaji, BildirimTip.Uyari);
+        }
+    }
+
+    // Tek bir işletmenin yaklaşan bakım listesinden HTML e-posta gövdesi üretir.
+    private static string BildirimHtmlOlustur(List<BakimServis> yaklasanlar, DateTime bugun)
+    {
         var satirlar = yaklasanlar.Select(b =>
         {
             var gun = (b.BakimYapilacakTarih.Date - bugun).Days;
@@ -58,7 +108,7 @@ public class BakimBildirimJob(
                 """;
         });
 
-        var html = $"""
+        return $"""
             <!DOCTYPE html>
             <html>
             <head><meta charset='utf-8'></head>
@@ -102,35 +152,5 @@ public class BakimBildirimJob(
             </body>
             </html>
             """;
-
-        var alici = config["EmailSettings:AliciEmail"]!;
-        try
-        {
-            await emailService.GonderAsync(alici, $"Bakım Bildirimi — {yaklasanlar.Count} yaklaşan bakım", html);
-            logger.LogInformation("{Count} yaklaşan bakım için bildirim e-postası gönderildi.", yaklasanlar.Count);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Bakım bildirimi e-postası gönderilemedi. Alıcı: {Alici}", alici);
-        }
-
-        // Admin kullanıcılarına uygulama içi bildirim gönder (tüm işletmelerden — filtre atlanır)
-        var adminler = await db.Kullanicilar
-            .IgnoreQueryFilters()
-            .Where(k => k.AktifMi && k.Rol == IsletmeYonetim.Domain.Enums.Rol.Admin)
-            .Select(k => new { k.Id, k.IsletmeId })
-            .ToListAsync();
-
-        var gecikmisSayisi = yaklasanlar.Count(b => b.BakimYapilacakTarih.Date < bugun);
-        var bildirimMesaji = gecikmisSayisi > 0
-            ? $"{yaklasanlar.Count} bakım dikkat bekliyor ({gecikmisSayisi} tanesi gecikmiş)."
-            : $"Önümüzdeki 7 günde {yaklasanlar.Count} bakım randevusu var.";
-
-        foreach (var admin in adminler)
-        {
-            // Bildirim doğru işletmeye yazılsın diye o admin'in tenant'ını ayarla
-            tenant.SetIsletme(admin.IsletmeId);
-            await bildirimService.CreateAsync(admin.Id, bildirimMesaji, BildirimTip.Uyari);
-        }
     }
 }

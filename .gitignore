@@ -60,6 +60,9 @@ skills-lock.json
 # AI servis gizli anahtarı
 ai-service/.env
 
+# Eğitilmiş AI modeli — açılışta veri setinden otomatik üretilir/yüklenir
+ai-service/model.pkl
+
 # ============================================================
 #  Çalışma zamanı yüklemeleri (teknisyen kanıt fotoğrafları vb.)
 #  — wwwroot/uploads runtime'da Program.cs tarafından oluşturulur
