@@ -40,16 +40,6 @@ if GEMINI_API_KEY and GEMINI_API_KEY != "BURAYA_YAPISTIR":
     except Exception as _e:
         print("Gemini başlatılamadı:", _e)
 
-# Teknisyene yardımcı olacak, görsel arıza/parça analizi için yönerge
-ARIZA_PROMPT = (
-    "Sen deneyimli bir beyaz eşya ve klima teknik servis uzmanısın. "
-    "Sana bir cihaz veya parça fotoğrafı veriyorum. Yanıtı KISA, Türkçe ve madde madde yaz:\n"
-    "1) Cihaz/Parça: Fotoğraftaki nedir? (tür, görünüyorsa marka)\n"
-    "2) Görünen olası arıza/sorunlar (pas, su kaçağı, kırık, aşırı kir, fiziksel hasar, ekranda hata kodu vb.)\n"
-    "3) Teknisyenin yerinde kontrol etmesi gereken noktalar\n"
-    "Emin olmadığın yerleri 'kesin değil' diye belirt. Sadece teknik gözlem yap."
-)
-
 # Teknisyenle KARŞILIKLI sohbet (chat) için yönerge — usta hem foto hem yazıyla sorabilir
 SOHBET_PROMPT = (
     "Sen deneyimli bir beyaz eşya, klima ve kombi teknik servis ustasısın. "
@@ -66,7 +56,7 @@ SOHBET_PROMPT = (
 def _gemini_cagir(contents, config=None) -> str:
     """
     Gemini'yi çağırır; anlık yoğunlukta (503/UNAVAILABLE) artan beklemeyle 3 kez dener.
-    Hem görsel analiz (/ariza-tespit) hem sohbet (/ariza-sohbet) bunu kullanır.
+    Arıza sohbeti (/ariza-sohbet) bunu kullanır.
     """
     if _gemini is None:
         raise HTTPException(
@@ -135,28 +125,6 @@ def tahmin(istek: TahminIstek):
     """
     sonuc = tahmin_et(istek.cihazYasi, istek.bakimSayisi, istek.sonBakimGunSayisi)
     return TahminYanit(**sonuc)
-
-
-@app.post("/ariza-tespit", tags=["Görüntü"])
-async def ariza_tespit(foto: UploadFile = File(...)):
-    """
-    Cihaz/parça fotoğrafını Gemini görüntü modeline gönderir;
-    cihazı tanır ve görünen olası arızaları Türkçe açıklar.
-    """
-    if _gemini is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Gemini anahtarı ayarlı değil. ai-service/.env içine GEMINI_API_KEY yazıp servisi yeniden başlat.",
-        )
-
-    icerik = await foto.read()
-    if not icerik:
-        raise HTTPException(status_code=400, detail="Boş veya geçersiz dosya.")
-
-    mime = foto.content_type or "image/jpeg"
-    from google.genai import types
-    icerikler = [types.Part.from_bytes(data=icerik, mime_type=mime), ARIZA_PROMPT]
-    return {"sonuc": _gemini_cagir(icerikler)}
 
 
 @app.post("/ariza-sohbet", tags=["Görüntü"])
