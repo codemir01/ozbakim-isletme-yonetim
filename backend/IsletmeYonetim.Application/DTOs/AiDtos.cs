@@ -20,3 +20,7 @@ public record FaturaKalemDto(
     int Adet,
     decimal BirimFiyat
 );
+
+// Sesle Rapor (NLP): teknisyenin sesten yazıya çevrilmiş ham notu → AI ile düzenlenmiş rapor
+public record RaporDuzenleIstek(string Metin);
+public record RaporDuzenleYanit(string Rapor);

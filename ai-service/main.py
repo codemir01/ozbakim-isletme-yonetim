@@ -230,3 +230,57 @@ async def fatura_oku(foto: UploadFile = File(...)):
             return json.loads(temiz)
         except Exception:
             raise HTTPException(status_code=502, detail="Fatura çözümlenemedi (geçersiz AI yanıtı).")
+
+
+# Teknisyenin sesle söylediği ham notu profesyonel servis raporuna çeviren yönerge (NLP).
+RAPOR_PROMPT = (
+    "Sen bir teknik servis raporu editörüsün. Teknisyen sahada yaptığı işi sesle, "
+    "dağınık ve günlük dille anlatıyor. Görevin bunu düzgün, profesyonel bir Türkçe "
+    "BAKIM/SERVİS RAPORUNA çevirmek. Kurallar:\n"
+    "- Resmi, net ve teknik bir dil kullan.\n"
+    "- Yapılan işlemleri ve değiştirilen/kullanılan parçaları açıkça belirt.\n"
+    "- Gereksiz tekrar ve dolgu sözcükleri çıkar; bilgiyi koru.\n"
+    "- Kısa bir paragraf veya madde listesi olabilir.\n"
+    "- SADECE düzeltilmiş raporu döndür, ekstra açıklama veya başlık ekleme."
+)
+
+
+class RaporDuzenleIstek(BaseModel):
+    metin: str = Field(..., description="Sesten yazıya çevrilmiş ham teknisyen notu")
+
+
+@app.post("/rapor-duzenle", tags=["NLP"])
+def rapor_duzenle(istek: RaporDuzenleIstek):
+    """
+    Teknisyenin sesle yazdırdığı ham metni alıp profesyonel bir servis raporuna çevirir.
+    Konuşmadan-yazıya (STT) tarayıcıda yapılır; bu uç yalnızca metni düzenler (NLP).
+    """
+    metin = (istek.metin or "").strip()
+    if not metin:
+        raise HTTPException(status_code=400, detail="Boş metin gönderildi.")
+
+    from google.genai import types
+    contents = [types.Content(role="user", parts=[types.Part.from_text(text=metin)])]
+    config = types.GenerateContentConfig(system_instruction=RAPOR_PROMPT)
+    return {"rapor": _gemini_cagir(contents, config=config).strip()}
+
+
+@app.post("/rapor-sesli", tags=["NLP"])
+async def rapor_sesli(ses: UploadFile = File(...)):
+    """
+    MOBİL için: teknisyenin ses kaydını alır, Gemini hem yazıya döker (STT)
+    hem de profesyonel servis raporuna çevirir (NLP) — tek çağrıda.
+    Eli kirli teknisyen klavye kullanmadan rapor yazdırır.
+    """
+    icerik = await ses.read()
+    if not icerik:
+        raise HTTPException(status_code=400, detail="Boş ses kaydı gönderildi.")
+
+    from google.genai import types
+    mime = ses.content_type or "audio/mp4"
+    contents = [types.Content(role="user", parts=[
+        types.Part.from_bytes(data=icerik, mime_type=mime),
+        types.Part.from_text(text="Bu ses kaydını dinle ve söylenenlere göre servis raporunu üret."),
+    ])]
+    config = types.GenerateContentConfig(system_instruction=RAPOR_PROMPT)
+    return {"rapor": _gemini_cagir(contents, config=config).strip()}

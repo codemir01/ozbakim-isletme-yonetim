@@ -2,9 +2,11 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
   ActivityIndicator, RefreshControl, Modal, TextInput,
-  KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView, Alert,
 } from 'react-native';
-import api, { apiHata } from '../api/client';
+import { useAudioRecorder, RecordingPresets, AudioModule, setAudioModeAsync } from 'expo-audio';
+import { File, UploadType } from 'expo-file-system';
+import api, { apiHata, API_AI } from '../api/client';
 import { renkler } from '../theme';
 
 // Gün durumuna göre renk/etiket (web'deki durumBilgi ile aynı mantık)
@@ -39,6 +41,62 @@ export default function BakimScreen() {
   const [gecmisForm, setGecmisForm] = useState({ aciklama: '', yapilmaTarihi: bugunISO(), yeniBakimAraligiGun: '180' });
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const [gecmisHata, setGecmisHata] = useState('');
+
+  // Sesle rapor (mobil): expo-audio ile kayıt + Gemini'ye gönderip rapora çevirme
+  const sesKaydedici = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const [sesKaydiniz, setSesKaydiniz] = useState(false);   // şu an kayıt yapılıyor mu
+  const [sesIsleniyor, setSesIsleniyor] = useState(false); // kayıt AI'a gönderildi, bekleniyor
+
+  // Mikrofona bas → kayda başla
+  async function sesKaydiBaslat() {
+    try {
+      const izin = await AudioModule.requestRecordingPermissionsAsync();
+      if (!izin.granted) {
+        Alert.alert('Mikrofon izni gerekli', 'Sesle rapor yazmak için mikrofon izni verin.');
+        return;
+      }
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      await sesKaydedici.prepareToRecordAsync();
+      sesKaydedici.record();
+      setSesKaydiniz(true);
+    } catch (e) {
+      setGecmisHata('Ses kaydı başlatılamadı: ' + (e.message || ''));
+    }
+  }
+
+  // Durdur → kaydı Gemini'ye gönder → dönen raporu açıklamaya yaz
+  async function sesKaydiDurdurGonder() {
+    try {
+      await sesKaydedici.stop();
+      setSesKaydiniz(false);
+      const uri = sesKaydedici.uri;
+      if (!uri) return;
+
+      setSesIsleniyor(true);
+      setGecmisHata('');
+      const dosya = new File(uri);
+      const res = await dosya.upload(`${API_AI}/rapor-sesli`, {
+        uploadType: UploadType.MULTIPART,
+        httpMethod: 'POST',
+        fieldName: 'ses',
+        mimeType: 'audio/mp4',
+      });
+      const data = JSON.parse(res.body || '{}');
+      if (res.status < 200 || res.status >= 300) throw new Error(data?.detail || 'Ses işlenemedi.');
+      if (data.rapor) setGecmisForm((f) => ({ ...f, aciklama: data.rapor }));
+    } catch (e) {
+      const m = e.message?.includes('Network') ? 'AI servisine ulaşılamadı.' : (e.message || 'Ses işlenemedi.');
+      setGecmisHata('⚠️ ' + m);
+    } finally {
+      setSesIsleniyor(false);
+    }
+  }
+
+  // Modalı kapat — aktif ses kaydı varsa durdur
+  function gecmisKapat() {
+    if (sesKaydiniz) { sesKaydedici.stop().catch(() => {}); setSesKaydiniz(false); }
+    setGecmisModal(null);
+  }
 
   const veriCek = useCallback(async () => {
     try {
@@ -215,20 +273,36 @@ export default function BakimScreen() {
       />
 
       {/* Bakım Yapıldı Modalı */}
-      <Modal visible={!!gecmisModal} animationType="slide" transparent onRequestClose={() => setGecmisModal(null)}>
+      <Modal visible={!!gecmisModal} animationType="slide" transparent onRequestClose={gecmisKapat}>
         <KeyboardAvoidingView style={s.modalArka} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={s.modalKart}>
             <View style={s.modalBaslikBar}>
               <Text style={s.modalBaslik}>Bakım Yapıldı</Text>
-              <TouchableOpacity onPress={() => setGecmisModal(null)}><Text style={s.kapat}>✕</Text></TouchableOpacity>
+              <TouchableOpacity onPress={gecmisKapat}><Text style={s.kapat}>✕</Text></TouchableOpacity>
             </View>
             <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={s.etiket}>Yapılan İşlemler *</Text>
+              <View style={s.islemBaslikSatir}>
+                <Text style={[s.etiket, { marginTop: 0 }]}>Yapılan İşlemler *</Text>
+                {/* Sesle yazdır — eli kirli teknisyen için */}
+                <TouchableOpacity
+                  style={[s.sesBtn, sesKaydiniz && s.sesBtnAktif]}
+                  onPress={sesKaydiniz ? sesKaydiDurdurGonder : sesKaydiBaslat}
+                  disabled={sesIsleniyor}
+                >
+                  {sesIsleniyor
+                    ? <ActivityIndicator color={renkler.indigo} size="small" />
+                    : <Text style={[s.sesBtnYazi, sesKaydiniz && { color: '#fff' }]}>
+                        {sesKaydiniz ? '⏹ Durdur & Yazdır' : '🎤 Sesle Yazdır'}
+                      </Text>}
+                </TouchableOpacity>
+              </View>
+              {sesKaydiniz ? <Text style={s.sesDurum}>● Kayıt yapılıyor, konuşun... bitince "Durdur"a basın.</Text> : null}
+              {sesIsleniyor ? <Text style={s.sesDurum}>Yapay zeka ses kaydını rapora çeviriyor...</Text> : null}
               <TextInput
-                style={[s.input, { height: 80, textAlignVertical: 'top' }]}
+                style={[s.input, { height: 90, textAlignVertical: 'top' }]}
                 value={gecmisForm.aciklama}
                 onChangeText={(t) => setGecmisForm({ ...gecmisForm, aciklama: t })}
-                placeholder="Yapılan bakım ve değiştirilen parçalar..."
+                placeholder="Yapılan bakım ve değiştirilen parçalar... (mikrofona basıp sesle de yazdırabilirsiniz)"
                 placeholderTextColor={renkler.metinGri}
                 multiline
               />
@@ -306,6 +380,11 @@ const s = StyleSheet.create({
   etiket: { fontSize: 13, fontWeight: '600', color: renkler.metin, marginBottom: 6, marginTop: 10 },
   input: { borderWidth: 1, borderColor: renkler.kenar, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: renkler.metin, backgroundColor: '#f8fafc' },
   hata: { color: renkler.kirmizi, backgroundColor: renkler.kirmiziArka, padding: 10, borderRadius: 10, marginTop: 12, fontSize: 13 },
+  islemBaslikSatir: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, marginBottom: 6 },
+  sesBtn: { borderWidth: 1, borderColor: renkler.indigo, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+  sesBtnAktif: { backgroundColor: renkler.kirmizi, borderColor: renkler.kirmizi },
+  sesBtnYazi: { color: renkler.indigo, fontWeight: '700', fontSize: 12 },
+  sesDurum: { fontSize: 12, color: renkler.metinSoluk, marginBottom: 6, fontStyle: 'italic' },
   kaydetBtn: { backgroundColor: renkler.indigo, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18, marginBottom: 10 },
   kaydetYazi: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

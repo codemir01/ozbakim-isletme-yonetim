@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Text.Json;
 using IsletmeYonetim.API.Extensions;
 using IsletmeYonetim.Application.DTOs;
@@ -88,6 +89,48 @@ public class BakimController(IBakimService bakimService, IHttpClientFactory http
         {
             return StatusCode(503, new ApiResponse<RiskTahminYanit>(false, null,
                 "AI servisi şu an çalışmıyor. Lütfen servisi başlatın.", null));
+        }
+    }
+
+    // POST /api/v1/bakim/rapor-duzenle — teknisyenin sesle yazdırdığı ham notu AI ile
+    // profesyonel servis raporuna çevirir (STT tarayıcıda, NLP düzenleme Python'da)
+    [HttpPost("rapor-duzenle")]
+    public async Task<ActionResult<ApiResponse<RaporDuzenleYanit>>> RaporDuzenle([FromBody] RaporDuzenleIstek istek)
+    {
+        if (string.IsNullOrWhiteSpace(istek?.Metin))
+            return BadRequest(ApiResponse<RaporDuzenleYanit>.HataDon("Düzenlenecek metin boş olamaz."));
+
+        try
+        {
+            var client = httpClientFactory.CreateClient("AiService");
+            var httpYanit = await client.PostAsJsonAsync("/rapor-duzenle", new { metin = istek.Metin });
+            if (!httpYanit.IsSuccessStatusCode)
+            {
+                // AI servisinin gerçek hata sebebini yüzeye çıkar
+                var hataGovde = await httpYanit.Content.ReadAsStringAsync();
+                var detay = "AI servisi yanıt vermedi.";
+                try
+                {
+                    using var doc = JsonDocument.Parse(hataGovde);
+                    if (doc.RootElement.TryGetProperty("detail", out var d))
+                        detay = d.GetString() ?? detay;
+                }
+                catch { /* JSON değilse genel mesaj */ }
+                return StatusCode(502, ApiResponse<RaporDuzenleYanit>.HataDon($"Rapor düzenlenemedi: {detay}"));
+            }
+
+            var json = await httpYanit.Content.ReadAsStringAsync();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var sonuc = JsonSerializer.Deserialize<RaporDuzenleYanit>(json, options);
+            if (sonuc is null)
+                return StatusCode(502, ApiResponse<RaporDuzenleYanit>.HataDon("Rapor yanıtı çözümlenemedi."));
+
+            return Ok(ApiResponse<RaporDuzenleYanit>.BasariVeri(sonuc));
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(503, ApiResponse<RaporDuzenleYanit>.HataDon(
+                "AI servisi şu an çalışmıyor. Lütfen servisi başlatın."));
         }
     }
 

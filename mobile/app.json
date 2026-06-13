@@ -30,7 +30,8 @@
         {
           "cameraPermission": "ÖzBakım, görev tamamlanırken iş kanıt fotoğrafı çekmek için kameraya erişir."
         }
-      ]
+      ],
+      "expo-audio"
     ]
   }
 }
