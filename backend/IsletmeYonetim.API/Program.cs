@@ -59,7 +59,9 @@ var aiBaseUrl = builder.Configuration["AiService:BaseUrl"] ?? "http://localhost:
 builder.Services.AddHttpClient("AiService", client =>
 {
     client.BaseAddress = new Uri(aiBaseUrl);
-    client.Timeout = TimeSpan.FromSeconds(10);
+    // Risk tahmini hızlıdır; ama fatura OCR (Gemini Vision) görsel analiz yaptığı için
+    // daha uzun sürebilir → 30 sn timeout.
+    client.Timeout = TimeSpan.FromSeconds(30);
 });
 
 // 4. FluentValidation — tüm validatorları Application katmanından otomatik kaydet

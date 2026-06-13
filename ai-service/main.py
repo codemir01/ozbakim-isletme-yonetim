@@ -53,6 +53,22 @@ SOHBET_PROMPT = (
 )
 
 
+# Fatura/fiş görselini yapılandırılmış veriye çeviren yönerge (OCR + LLM).
+# Gemini'ye response_mime_type="application/json" ile birlikte verilir → temiz JSON döner.
+FATURA_PROMPT = (
+    "Sen bir fatura/fiş okuma asistanısın. Sana verilen fatura veya fiş görselini analiz et. "
+    "SADECE şu JSON şemasında yanıt ver, başka hiçbir metin ekleme:\n"
+    "{\n"
+    '  "firma": "satıcı/tedarikçi firma adı (bulamazsan boş bırak)",\n'
+    '  "tarih": "YYYY-AA-GG biçiminde fatura tarihi (bulamazsan boş bırak)",\n'
+    '  "toplamTutar": KDV dahil genel toplam (sayı, TL sembolü ve binlik ayraç olmadan, ondalık nokta),\n'
+    '  "kalemler": [ { "ad": "ürün/hizmet adı", "adet": sayı, "birimFiyat": sayı } ]\n'
+    "}\n"
+    "Tüm para değerlerini ondalık noktayla SAYI olarak ver (ör. 4500.00). "
+    "Kalem bulamazsan boş liste döndür. Tarihi mutlaka YYYY-AA-GG biçimine çevir."
+)
+
+
 def _gemini_cagir(contents, config=None) -> str:
     """
     Gemini'yi çağırır; anlık yoğunlukta (503/UNAVAILABLE) artan beklemeyle 3 kez dener.
@@ -70,7 +86,17 @@ def _gemini_cagir(contents, config=None) -> str:
             return yanit.text
         except Exception as e:
             son_hata = e
-            gecici = "503" in str(e) or "UNAVAILABLE" in str(e) or "overloaded" in str(e).lower()
+            hata_metni = str(e).lower()
+            # Geçici sayılan hatalar: Gemini yoğunluğu (503) + anlık ağ/DNS kopmaları
+            gecici = (
+                "503" in hata_metni
+                or "unavailable" in hata_metni
+                or "overloaded" in hata_metni
+                or "getaddrinfo" in hata_metni      # DNS çözümlenemedi (anlık)
+                or "connection" in hata_metni        # bağlantı koptu/reddedildi
+                or "timed out" in hata_metni
+                or "11002" in hata_metni             # Windows: DNS sunucusu geçici yanıt vermedi
+            )
             if gecici and deneme < 2:
                 time.sleep(1.5 * (deneme + 1))   # 1.5sn, 3sn artan bekleme
                 continue
@@ -167,3 +193,40 @@ async def ariza_sohbet(
 
     config = types.GenerateContentConfig(system_instruction=SOHBET_PROMPT)
     return {"cevap": _gemini_cagir(contents, config=config)}
+
+
+@app.post("/fatura-oku", tags=["Görüntü"])
+async def fatura_oku(foto: UploadFile = File(...)):
+    """
+    Fatura/fiş görselini Gemini Vision ile okur ve yapılandırılmış JSON döndürür:
+    { firma, tarih, toplamTutar, kalemler:[{ad,adet,birimFiyat}] }.
+    .NET backend bu uçtan gelen veriyi gelir-gider ve stok kayıtlarına aktarır.
+    """
+    icerik = await foto.read()
+    if not icerik:
+        raise HTTPException(status_code=400, detail="Boş dosya gönderildi.")
+
+    from google.genai import types
+    mime = foto.content_type or "image/jpeg"
+    contents = [
+        types.Content(role="user", parts=[
+            types.Part.from_bytes(data=icerik, mime_type=mime),
+            types.Part.from_text(text="Bu fatura/fiş görselini oku ve istenen JSON'u döndür."),
+        ])
+    ]
+    config = types.GenerateContentConfig(
+        system_instruction=FATURA_PROMPT,
+        response_mime_type="application/json",   # modeli temiz JSON dönmeye zorla
+    )
+    ham = _gemini_cagir(contents, config=config)
+
+    import json
+    try:
+        return json.loads(ham)
+    except Exception:
+        # Model bazen JSON'u ```json ... ``` bloğuyla sarabilir — temizleyip tekrar dene
+        temiz = ham.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        try:
+            return json.loads(temiz)
+        except Exception:
+            raise HTTPException(status_code=502, detail="Fatura çözümlenemedi (geçersiz AI yanıtı).")

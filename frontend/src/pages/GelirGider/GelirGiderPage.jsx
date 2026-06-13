@@ -20,6 +20,15 @@ export default function GelirGiderPage() {
   const [form, setForm] = useState({ tip: 'Gelir', miktar: '', aciklama: '', tarih: '' });
   const [kaydediliyor, setKaydediliyor] = useState(false);
 
+  // --- AI Fatura Okuma (OCR) durumu ---
+  const [ocrModal, setOcrModal] = useState(false);
+  const [ocrAsama, setOcrAsama] = useState('secim');     // secim | okunuyor | onay
+  const [ocrVeri, setOcrVeri] = useState(null);          // AI'dan dönen ham veri (kalemler dahil)
+  const [ocrForm, setOcrForm] = useState({ tip: 'Gider', miktar: '', aciklama: '', tarih: '' });
+  const [stogaEkle, setStogaEkle] = useState(true);      // kalemleri stoğa da ekle
+  const [ocrKaydediliyor, setOcrKaydediliyor] = useState(false);
+  const [ocrHata, setOcrHata] = useState('');
+
   useEffect(() => { veriCek(); }, []);
 
   async function veriCek() {
@@ -57,6 +66,85 @@ export default function GelirGiderPage() {
       await api.delete(`/gelir-gider/${id}`);
       veriCek();
     } catch (err) { console.error(err); }
+  }
+
+  // Fatura görseli seçilince AI'a gönder, dönen veriyle onay formunu doldur
+  async function handleFaturaSec(e) {
+    const dosya = e.target.files?.[0];
+    e.target.value = ''; // aynı dosya tekrar seçilebilsin
+    if (!dosya) return;
+
+    setOcrHata('');
+    setOcrAsama('okunuyor');
+    try {
+      const fd = new FormData();
+      fd.append('foto', dosya);
+      const res = await api.post('/gelir-gider/fatura-oku', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const veri = res.data.veri;
+      if (!veri) throw new Error('Fatura okunamadı.');
+      setOcrVeri(veri);
+      // Okunan kalemleri açıklamaya da ekle (ör. "Fatura: ABC Ltd — Buzdolabı, Kombi Kartı")
+      const kalemOzet = (veri.kalemler || []).map((k) => k.ad).filter(Boolean).join(', ');
+      const aciklamaParcalari = [
+        veri.firma ? `Fatura: ${veri.firma}` : 'Fatura alımı',
+        kalemOzet,
+      ].filter(Boolean);
+      setOcrForm({
+        tip: 'Gider', // tedarikçi alım faturası varsayımı — kullanıcı onay ekranında değiştirebilir
+        miktar: veri.toplamTutar ? String(veri.toplamTutar) : '',
+        aciklama: aciklamaParcalari.join(' — '),
+        tarih: veri.tarih || '',
+      });
+      setOcrAsama('onay');
+    } catch (err) {
+      setOcrHata(err.response?.data?.hata || 'Fatura okunamadı. AI servisi çalışıyor mu?');
+      setOcrAsama('secim');
+    }
+  }
+
+  // Onaylanan faturayı gider olarak (ve istenirse kalemleri stoğa) kaydet
+  async function handleOcrKaydet() {
+    setOcrKaydediliyor(true);
+    try {
+      await api.post('/gelir-gider', {
+        tip: ocrForm.tip,
+        miktar: parseFloat(ocrForm.miktar) || 0,
+        aciklama: ocrForm.aciklama,
+        tarih: ocrForm.tarih ? new Date(ocrForm.tarih).toISOString() : null,
+      });
+
+      // İstenirse her fatura kalemini yedek parça olarak stoğa ekle (sadece gider/alım faturasında mantıklı)
+      if (ocrForm.tip === 'Gider' && stogaEkle && ocrVeri?.kalemler?.length) {
+        for (const [i, k] of ocrVeri.kalemler.entries()) {
+          if (!k.ad) continue;
+          await api.post('/urunler', {
+            urunAdi: k.ad,
+            kategori: 'YedekParca',
+            stokKodu: `OCR-${Date.now()}-${i}`,
+            stokAdedi: k.adet || 0,
+            alisFiyati: k.birimFiyat || 0,
+          });
+        }
+      }
+
+      ocrKapat();
+      veriCek();
+    } catch (err) {
+      setOcrHata(err.response?.data?.hata || 'Kayıt sırasında hata oluştu.');
+    } finally {
+      setOcrKaydediliyor(false);
+    }
+  }
+
+  function ocrKapat() {
+    setOcrModal(false);
+    setOcrAsama('secim');
+    setOcrVeri(null);
+    setOcrForm({ tip: 'Gider', miktar: '', aciklama: '', tarih: '' });
+    setOcrHata('');
+    setStogaEkle(true);
   }
 
   const filtrelenmis = liste.filter((k) => {
@@ -152,16 +240,30 @@ export default function GelirGiderPage() {
           </div>
 
           {isAdmin && (
-            <button
-              onClick={() => setModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
-              style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Yeni Kayıt
-            </button>
+            <div className="flex items-center gap-2">
+              {/* AI Fatura Tara — fatura görselini okuyup gideri otomatik doldurur */}
+              <button
+                onClick={() => setOcrModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 text-indigo-700 text-sm font-semibold rounded-xl border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:-translate-y-0.5 transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Fatura Tara (AI)
+              </button>
+
+              <button
+                onClick={() => setModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Yeni Kayıt
+              </button>
+            </div>
           )}
         </div>
 
@@ -340,6 +442,177 @@ export default function GelirGiderPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI Fatura Okuma Modalı */}
+      {ocrModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div
+              className="flex items-center justify-between p-5 text-white"
+              style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}
+            >
+              <div>
+                <h3 className="text-base font-bold">AI ile Fatura Tara</h3>
+                <p className="text-xs text-white/70 mt-0.5">Fatura/fiş görseli yükleyin, yapay zeka okusun</p>
+              </div>
+              <button
+                onClick={ocrKapat}
+                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {ocrHata && (
+                <div className="px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+                  {ocrHata}
+                </div>
+              )}
+
+              {/* 1. Aşama: dosya seçimi */}
+              {ocrAsama === 'secim' && (
+                <label className="flex flex-col items-center justify-center gap-3 py-10 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40 transition-colors">
+                  <svg className="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5V18a2 2 0 002 2h14a2 2 0 002-2v-1.5M16 7l-4-4m0 0L8 7m4-4v12" />
+                  </svg>
+                  <span className="text-sm font-semibold text-slate-600">Fatura görseli seç (JPG / PNG)</span>
+                  <span className="text-xs text-slate-400">En fazla 5 MB</span>
+                  <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleFaturaSec} />
+                </label>
+              )}
+
+              {/* 2. Aşama: okunuyor */}
+              {ocrAsama === 'okunuyor' && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <svg className="animate-spin w-8 h-8 text-indigo-500" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <p className="text-sm text-slate-500">Yapay zeka faturayı okuyor...</p>
+                </div>
+              )}
+
+              {/* 3. Aşama: onay / düzenleme */}
+              {ocrAsama === 'onay' && (
+                <>
+                  {/* Tür: AI karar vermez, varsayılan Gider (alım faturası). Kullanıcı değiştirebilir. */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tür *</label>
+                    <div className="flex gap-3">
+                      {['Gelir', 'Gider'].map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setOcrForm({ ...ocrForm, tip: t })}
+                          className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${
+                            ocrForm.tip === t
+                              ? t === 'Gelir'
+                                ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
+                                : 'bg-rose-50 border-rose-500 text-rose-700'
+                              : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+                          }`}
+                        >
+                          {t === 'Gelir' ? '↑ Gelir' : '↓ Gider'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Açıklama</label>
+                      <input
+                        type="text"
+                        value={ocrForm.aciklama}
+                        onChange={(e) => setOcrForm({ ...ocrForm, aciklama: e.target.value })}
+                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-slate-50 focus:bg-white transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tutar (₺)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ocrForm.miktar}
+                        onChange={(e) => setOcrForm({ ...ocrForm, miktar: e.target.value })}
+                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-slate-50 focus:bg-white transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tarih</label>
+                      <input
+                        type="date"
+                        value={ocrForm.tarih}
+                        onChange={(e) => setOcrForm({ ...ocrForm, tarih: e.target.value })}
+                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-slate-50 focus:bg-white transition"
+                      />
+                    </div>
+                  </div>
+
+                  {/* AI'ın bulduğu kalemler */}
+                  {ocrVeri?.kalemler?.length > 0 && (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                      <div className="px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                        <span>Okunan Kalemler ({ocrVeri.kalemler.length})</span>
+                      </div>
+                      <div className="max-h-40 overflow-y-auto divide-y divide-slate-50">
+                        {ocrVeri.kalemler.map((k, i) => (
+                          <div key={i} className="px-4 py-2 flex items-center justify-between text-sm">
+                            <span className="text-slate-700">{k.ad || '—'}</span>
+                            <span className="text-slate-400 tabular-nums">
+                              {k.adet || 0} × {(k.birimFiyat || 0).toLocaleString('tr-TR')} ₺
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {ocrForm.tip === 'Gider' && (
+                        <label className="flex items-center gap-2 px-4 py-3 bg-indigo-50/50 border-t border-slate-100 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={stogaEkle}
+                            onChange={(e) => setStogaEkle(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="text-sm text-slate-600">Bu kalemleri yedek parça olarak stoğa da ekle</span>
+                        </label>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                    <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-amber-700">Yapay zeka okuması hatalı olabilir. Kaydetmeden önce değerleri kontrol edin.</p>
+                  </div>
+
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={ocrKapat}
+                      className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-50 font-medium transition-colors"
+                    >
+                      İptal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleOcrKaydet}
+                      disabled={ocrKaydediliyor}
+                      className="flex-1 py-2.5 px-4 rounded-xl text-white text-sm font-semibold shadow-md disabled:opacity-60"
+                      style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}
+                    >
+                      {ocrKaydediliyor ? 'Kaydediliyor...' : 'Kaydet'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
