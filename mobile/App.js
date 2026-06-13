@@ -24,8 +24,22 @@ import ArizaTespitScreen from './src/screens/ArizaTespitScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-// Giriş yapılınca görünen alt sekmeli ana ekran
+// Her sekmenin hangi rollere görüneceği — web'deki Layout.jsx ile birebir aynı mantık.
+// Özet herkese; Müşteriler/Satışlar/Ürünler satış tarafına; Bakım/Görevler saha tarafına.
+const SEKMELER = [
+  { name: 'Özet',       component: DashboardScreen, ikon: 'home-outline',     roller: ['Admin', 'SalesConsultant', 'Technician'], options: { headerShown: false } },
+  { name: 'Müşteriler', component: MusterilerScreen, ikon: 'people-outline',   roller: ['Admin', 'SalesConsultant'] },
+  { name: 'Satışlar',   component: SatislarScreen,   ikon: 'cart-outline',     roller: ['Admin', 'SalesConsultant'] },
+  { name: 'Ürünler',    component: UrunlerScreen,    ikon: 'cube-outline',     roller: ['Admin', 'SalesConsultant'] },
+  { name: 'Bakım',      component: BakimScreen,      ikon: 'construct-outline', roller: ['Admin', 'Technician'] },
+  { name: 'Görevler',   component: GorevlerScreen,   ikon: 'checkbox-outline', roller: ['Admin', 'Technician'] },
+];
+
+// Giriş yapılınca görünen alt sekmeli ana ekran — sekmeler kullanıcının rolüne göre filtrelenir
 function AnaSekmeler() {
+  const { kullanici } = useAuth();
+  const gorunenSekmeler = SEKMELER.filter((s) => s.roller.includes(kullanici?.rol));
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -35,25 +49,15 @@ function AnaSekmeler() {
         tabBarInactiveTintColor: renkler.metinGri,
         tabBarStyle: { paddingBottom: 4, height: 60 },
         tabBarLabelStyle: { fontSize: 10 },
-        tabBarIcon: ({ color, size }) => {
-          const ikonlar = {
-            Özet: 'home-outline',
-            Müşteriler: 'people-outline',
-            Satışlar: 'cart-outline',
-            Ürünler: 'cube-outline',
-            Bakım: 'construct-outline',
-            Görevler: 'checkbox-outline',
-          };
-          return <Ionicons name={ikonlar[route.name]} size={22} color={color} />;
+        tabBarIcon: ({ color }) => {
+          const sekme = SEKMELER.find((s) => s.name === route.name);
+          return <Ionicons name={sekme?.ikon ?? 'ellipse-outline'} size={22} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="Özet" component={DashboardScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Müşteriler" component={MusterilerScreen} />
-      <Tab.Screen name="Satışlar" component={SatislarScreen} />
-      <Tab.Screen name="Ürünler" component={UrunlerScreen} />
-      <Tab.Screen name="Bakım" component={BakimScreen} />
-      <Tab.Screen name="Görevler" component={GorevlerScreen} />
+      {gorunenSekmeler.map((s) => (
+        <Tab.Screen key={s.name} name={s.name} component={s.component} options={s.options} />
+      ))}
     </Tab.Navigator>
   );
 }

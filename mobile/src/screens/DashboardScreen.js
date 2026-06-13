@@ -100,13 +100,14 @@ export default function DashboardScreen({ navigation }) {
         <StatKart baslik="Kalan Borç" deger={formatPara(kalanBorc)} renk={renkler.kirmizi} />
       </View>
 
-      {/* Hızlı Erişim — ekstra sayfalara git */}
+      {/* Hızlı Erişim — ekstra sayfalara git. Web ile aynı rol mantığı:
+          Gelir/Gider sadece Admin, Faturalar Admin+Satış, Profil herkes. */}
       <View style={s.hizliSatir}>
         {[
-          { ad: 'Gelir / Gider', ikon: '💰', hedef: 'GelirGider' },
-          { ad: 'Faturalar', ikon: '🧾', hedef: 'Faturalar' },
-          { ad: 'Profilim', ikon: '👤', hedef: 'Profil' },
-        ].map((h) => (
+          { ad: 'Gelir / Gider', ikon: '💰', hedef: 'GelirGider', roller: ['Admin'] },
+          { ad: 'Faturalar', ikon: '🧾', hedef: 'Faturalar', roller: ['Admin', 'SalesConsultant'] },
+          { ad: 'Profilim', ikon: '👤', hedef: 'Profil', roller: ['Admin', 'SalesConsultant', 'Technician'] },
+        ].filter((h) => h.roller.includes(kullanici?.rol)).map((h) => (
           <TouchableOpacity key={h.hedef} style={s.hizliKart} onPress={() => navigation.navigate(h.hedef)}>
             <Text style={s.hizliIkon}>{h.ikon}</Text>
             <Text style={s.hizliYazi}>{h.ad}</Text>
