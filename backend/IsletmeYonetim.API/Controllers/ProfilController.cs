@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using IsletmeYonetim.API.Extensions;
 using IsletmeYonetim.Application.DTOs;
 using IsletmeYonetim.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -12,8 +12,7 @@ namespace IsletmeYonetim.API.Controllers;
 public class ProfilController(IProfilService profilService) : ControllerBase
 {
     // JWT'den oturum açmış kullanıcının ID'sini alır
-    private Guid KullaniciId =>
-        Guid.Parse(User.FindFirstValue("sub") ?? throw new UnauthorizedAccessException());
+    private Guid KullaniciId => User.GetKullaniciId();
 
     // GET /api/v1/profil — mevcut kullanıcı bilgilerini döndür
     [HttpGet]

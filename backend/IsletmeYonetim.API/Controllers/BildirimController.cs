@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using IsletmeYonetim.API.Extensions;
 using IsletmeYonetim.Application.DTOs;
 using IsletmeYonetim.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -11,8 +11,7 @@ namespace IsletmeYonetim.API.Controllers;
 [Authorize]
 public class BildirimController(IBildirimService bildirimService) : ControllerBase
 {
-    private Guid KullaniciId =>
-        Guid.Parse(User.FindFirstValue("sub") ?? throw new UnauthorizedAccessException());
+    private Guid KullaniciId => User.GetKullaniciId();
 
     // GET /api/v1/bildirimler — kullanıcının bildirimlerini getir (okunmamış önce)
     [HttpGet]

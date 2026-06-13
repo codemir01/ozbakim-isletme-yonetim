@@ -4,10 +4,11 @@ using IsletmeYonetim.Domain.Entities;
 using IsletmeYonetim.Domain.Enums;
 using IsletmeYonetim.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace IsletmeYonetim.Infrastructure.Services;
 
-public class GorevService(AppDbContext db, IBildirimService bildirimService) : IGorevService
+public class GorevService(AppDbContext db, IBildirimService bildirimService, ILogger<GorevService> logger) : IGorevService
 {
     public async Task<ApiResponse<List<GorevListeDto>>> GetGorevlerAsync()
     {
@@ -46,7 +47,18 @@ public class GorevService(AppDbContext db, IBildirimService bildirimService) : I
         // Frontend string gönderir ("Yuksek"), biz enum'a dönüştürürüz
         // TryParse: geçersizse crash olmaz, false döner
         if (!Enum.TryParse<GorevOncelik>(request.Oncelik, true, out var oncelik))
-            return new ApiResponse<object>(false, null, "Geçersiz öncelik değeri.", null);
+            return ApiResponse<object>.HataDon("Geçersiz öncelik değeri.");
+
+        // Atanan personel bu işletmede ve aktif mi? (global filtre tenant'ı zaten uygular)
+        // Doğrulamazsak geçersiz/başka tenant'ın Id'si FK kısıtını patlatıp 500 verir.
+        if (!await db.Kullanicilar.AnyAsync(k => k.Id == request.AtananId && k.AktifMi))
+            return ApiResponse<object>.HataDon("Atanan personel bulunamadı veya pasif.");
+
+        // Müşteri opsiyonel — boş (Guid.Empty) gelirse "müşteri yok" demektir → null sakla.
+        // Dolu geldiyse gerçekten bu işletmede mi diye doğrula (yoksa FK 500 verir).
+        Guid? musteriId = request.MusteriId == Guid.Empty ? null : request.MusteriId;
+        if (musteriId is { } mid && !await db.Musteriler.AnyAsync(m => m.Id == mid && !m.SilindiMi))
+            return ApiResponse<object>.HataDon("Seçilen müşteri bulunamadı.");
 
         var gorev = new Gorev
         {
@@ -54,7 +66,7 @@ public class GorevService(AppDbContext db, IBildirimService bildirimService) : I
             GorevDetayi = request.GorevDetayi,
             Oncelik = oncelik,
             AtananId = request.AtananId,
-            MusteriId = request.MusteriId,
+            MusteriId = musteriId,
             SonTeslimTarihi = DateTime.SpecifyKind(request.SonTeslimTarihi, DateTimeKind.Utc),
             OlusturanId = olusturanId, // JWT'den gelen kullanıcı ID'si
             Durum = GorevDurum.Bekliyor
@@ -74,9 +86,13 @@ public class GorevService(AppDbContext db, IBildirimService bildirimService) : I
                     Domain.Entities.BildirimTip.Bilgi);
             }
         }
-        catch { /* bildirim hatası görev oluşturmayı engellemesin */ }
+        catch (Exception ex)
+        {
+            // Bildirim hatası görev oluşturmayı engellemesin — ama sessizce yutma, logla.
+            logger.LogWarning(ex, "Görev bildirimi gönderilemedi. AtananId={AtananId}", request.AtananId);
+        }
 
-        return new ApiResponse<object>(true, null, null, "Görev oluşturuldu.");
+        return ApiResponse<object>.Basari("Görev oluşturuldu.");
     }
 
     public async Task<ApiResponse<object>> UpdateDurumAsync(Guid id, GorevDurumGuncelleRequest request)

@@ -2,7 +2,14 @@ namespace IsletmeYonetim.Application.DTOs;
 
 // Tüm API yanıtları bu standart yapıyı kullanır.
 // Frontend her zaman "basarili" alanına bakarak işlemin başarılı olup olmadığını anlar.
-public record ApiResponse<T>(bool Basarili, T? Veri, string? Hata, string? Mesaj);
+public record ApiResponse<T>(bool Basarili, T? Veri, string? Hata, string? Mesaj)
+{
+    // Okunabilir kısayollar — pozisyonel ctor (false, null, "...", null) yerine.
+    // Hata mesajında "bulunamadı" geçiyorsa controller bunu 404'e çevirebilir.
+    public static ApiResponse<T> Basari(string? mesaj = null, T? veri = default) => new(true, veri, null, mesaj);
+    public static ApiResponse<T> BasariVeri(T veri, string? mesaj = null) => new(true, veri, null, mesaj);
+    public static ApiResponse<T> HataDon(string hata) => new(false, default, hata, null);
+}
 
 public record PagedResponse<T>(
     bool Basarili,

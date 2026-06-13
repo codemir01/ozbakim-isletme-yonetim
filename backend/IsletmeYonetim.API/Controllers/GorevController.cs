@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using IsletmeYonetim.API.Extensions;
 using IsletmeYonetim.Application.DTOs;
 using IsletmeYonetim.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -11,6 +11,16 @@ namespace IsletmeYonetim.API.Controllers;
 [Authorize]
 public class GorevController(IGorevService gorevService, IWebHostEnvironment env) : ControllerBase
 {
+    private const int MaxDosyaBoyutu = 5 * 1024 * 1024; // 5 MB
+
+    // Uzantı → kabul edilen dosya imzaları (magic bytes). JPEG: FF D8 FF, PNG: 89 50 4E 47
+    private static readonly Dictionary<string, byte[][]> GecerliImzalar = new()
+    {
+        [".jpg"]  = [[0xFF, 0xD8, 0xFF]],
+        [".jpeg"] = [[0xFF, 0xD8, 0xFF]],
+        [".png"]  = [[0x89, 0x50, 0x4E, 0x47]],
+    };
+
     // GET /api/v1/gorevler — tüm görevleri listele
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<GorevListeDto>>>> Liste()
@@ -24,11 +34,8 @@ public class GorevController(IGorevService gorevService, IWebHostEnvironment env
     public async Task<ActionResult<ApiResponse<object>>> Olustur([FromBody] GorevOlusturRequest request)
     {
         // Görevi kimin oluşturduğunu JWT'den al
-        var kullaniciId = Guid.Parse(User.FindFirstValue("sub")
-                          ?? throw new UnauthorizedAccessException());
-
-        var response = await gorevService.CreateGorevAsync(request, kullaniciId);
-        return Ok(response);
+        var response = await gorevService.CreateGorevAsync(request, User.GetKullaniciId());
+        return response.Basarili ? StatusCode(201, response) : BadRequest(response);
     }
 
     // PUT /api/v1/gorevler/{id}/durum — görev durumunu güncelle (Bekliyor→Devam→Tamamlandi)
@@ -41,15 +48,29 @@ public class GorevController(IGorevService gorevService, IWebHostEnvironment env
 
     // PUT /api/v1/gorevler/{id}/tamamla — teknisyen kanıt fotoğrafı yükleyerek görevi tamamlar (multipart/form-data)
     [HttpPut("{id}/tamamla")]
+    [RequestSizeLimit(MaxDosyaBoyutu)] // İstek gövdesini 5 MB ile sınırla (DoS / disk dolması koruması)
     public async Task<ActionResult<ApiResponse<object>>> Tamamla(Guid id, IFormFile foto)
     {
         if (foto is null || foto.Length == 0)
-            return BadRequest(new ApiResponse<object>(false, null, "Kanıt fotoğrafı gerekli.", null));
+            return BadRequest(ApiResponse<object>.HataDon("Kanıt fotoğrafı gerekli."));
+
+        if (foto.Length > MaxDosyaBoyutu)
+            return BadRequest(ApiResponse<object>.HataDon("Dosya 5 MB'tan büyük olamaz."));
 
         // Sadece resim uzantılarına izin ver
         var ext = Path.GetExtension(foto.FileName).ToLowerInvariant();
-        if (ext is not (".jpg" or ".jpeg" or ".png"))
-            return BadRequest(new ApiResponse<object>(false, null, "Sadece JPG veya PNG yüklenebilir.", null));
+        if (!GecerliImzalar.TryGetValue(ext, out var imzalar))
+            return BadRequest(ApiResponse<object>.HataDon("Sadece JPG veya PNG yüklenebilir."));
+
+        // İçerik doğrulaması: dosyanın gerçekten resim olduğunu "magic byte" (dosya imzası)
+        // ile teyit et. Böylece zararlı bir dosyaya .jpg uzantısı verip yüklemek engellenir.
+        await using (var imzaOku = foto.OpenReadStream())
+        {
+            var bas = new byte[8];
+            var okunan = await imzaOku.ReadAsync(bas);
+            if (!imzalar.Any(sig => okunan >= sig.Length && bas.Take(sig.Length).SequenceEqual(sig)))
+                return BadRequest(ApiResponse<object>.HataDon("Dosya geçerli bir resim değil."));
+        }
 
         // wwwroot/uploads/gorevler altına benzersiz isimle kaydet
         var webRoot = env.WebRootPath ?? Path.Combine(env.ContentRootPath, "wwwroot");

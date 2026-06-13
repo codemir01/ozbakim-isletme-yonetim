@@ -1,5 +1,5 @@
-using System.Security.Claims;
 using System.Text.Json;
+using IsletmeYonetim.API.Extensions;
 using IsletmeYonetim.Application.DTOs;
 using IsletmeYonetim.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -33,10 +33,7 @@ public class BakimController(IBakimService bakimService, IHttpClientFactory http
     [HttpPost("{id}/gecmis")]
     public async Task<ActionResult<ApiResponse<object>>> GecmisEkle(Guid id, [FromBody] BakimGecmisEkleRequest request)
     {
-        var kullaniciId = Guid.Parse(User.FindFirstValue("sub")
-                          ?? throw new UnauthorizedAccessException());
-
-        var response = await bakimService.GecmisEkleAsync(id, request, kullaniciId);
+        var response = await bakimService.GecmisEkleAsync(id, request, User.GetKullaniciId());
         return response.Basarili ? Ok(response) : NotFound(response);
     }
 
@@ -100,6 +97,6 @@ public class BakimController(IBakimService bakimService, IHttpClientFactory http
     public async Task<ActionResult<ApiResponse<object>>> Olustur([FromBody] ManuelBakimOlusturRequest request)
     {
         var response = await bakimService.CreateManuelBakimAsync(request);
-        return Ok(response);
+        return response.Basarili ? StatusCode(201, response) : BadRequest(response);
     }
 }

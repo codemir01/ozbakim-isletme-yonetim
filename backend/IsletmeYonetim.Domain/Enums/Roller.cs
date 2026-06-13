@@ -59,11 +59,3 @@ public enum GelirGiderTip
     Gelir,
     Gider
 }
-
-// Yetki tablosunda rol-sayfa erişim seviyesi
-public enum ErisimTipi
-{
-    Tam,   // Okuma + yazma
-    Kismi, // Sadece okuma
-    Yok    // Erişim yok
-}

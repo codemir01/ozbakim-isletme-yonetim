@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using IsletmeYonetim.API.Extensions;
 using IsletmeYonetim.Application.DTOs;
 using IsletmeYonetim.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -24,13 +24,11 @@ public class SatisController(ISatisService satisService) : ControllerBase
     [Authorize(Roles = "Admin,SalesConsultant")]
     public async Task<ActionResult<ApiResponse<object>>> Olustur([FromBody] SatisOlusturRequest request)
     {
-        // JWT token'dan kullanıcı ID'sini al — "sub" claim'i Program.cs'de MapInboundClaims = false
-        // ayarı sayesinde orijinal adıyla ("sub") okunabilir
-        var kullaniciId = Guid.Parse(User.FindFirstValue("sub")
-                          ?? throw new UnauthorizedAccessException());
-
-        var response = await satisService.CreateSatisAsync(request, kullaniciId);
-        return Ok(response);
+        var response = await satisService.CreateSatisAsync(request, User.GetKullaniciId());
+        // Başarılıysa 201 Created; iş kuralı hatası (stok yok, müşteri yok...) ise 400.
+        // ÖNEMLİ: Eskiden her durumda 200 dönüyordu → frontend başarısız satışı sessizce
+        // "başarılı" sanıyordu. Artık hata 400 olarak döner ve kullanıcıya gösterilir.
+        return response.Basarili ? StatusCode(201, response) : BadRequest(response);
     }
 
     // GET /api/v1/satislar/ozet — satış özet istatistikleri (dashboard ve satışlar sayfası için)

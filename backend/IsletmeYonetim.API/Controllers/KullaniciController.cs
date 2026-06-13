@@ -21,7 +21,7 @@ public class KullaniciController(IKullaniciService kullaniciService) : Controlle
     public async Task<ActionResult<ApiResponse<KullaniciListeDto>>> Olustur([FromBody] KullaniciOlusturRequest request)
     {
         var response = await kullaniciService.CreateKullaniciAsync(request);
-        return response.Basarili ? Ok(response) : BadRequest(response);
+        return response.Basarili ? StatusCode(201, response) : BadRequest(response);
     }
 
     [HttpPut("{id}")]

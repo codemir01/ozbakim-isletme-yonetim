@@ -63,7 +63,9 @@ public class SatisService(AppDbContext db) : ISatisService
                     urunVar ? "Ürün stokta yok." : "Ürün bulunamadı.", null);
             }
 
-            var urun = await db.Urunler.FindAsync(request.UrunId);
+            // FirstOrDefaultAsync tenant filtresini uygular (FindAsync ATLAR).
+            // Ürün adı yalnızca borç açıklamasında kullanılıyor; stok düşümü zaten doğruladı.
+            var urun = await db.Urunler.FirstOrDefaultAsync(u => u.Id == request.UrunId);
 
             var satis = new Satis
             {

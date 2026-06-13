@@ -32,7 +32,7 @@ public class GelirGiderController(IGelirGiderService gelirGiderService) : Contro
     public async Task<ActionResult<ApiResponse<GelirGiderListeDto>>> Olustur([FromBody] GelirGiderOlusturRequest request)
     {
         var response = await gelirGiderService.CreateAsync(request);
-        return response.Basarili ? Ok(response) : BadRequest(response);
+        return response.Basarili ? StatusCode(201, response) : BadRequest(response);
     }
 
     // DELETE /api/v1/gelir-gider/{id} — kayıt sil (sadece Admin)

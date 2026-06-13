@@ -26,7 +26,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ITenantProvide
     public DbSet<BorcTahsilat> BorcTahsilatlar => Set<BorcTahsilat>();
     public DbSet<Fatura> Faturalar => Set<Fatura>();
     public DbSet<GelirGider> GelirGiderler => Set<GelirGider>();
-    public DbSet<Yetki> Yetkiler => Set<Yetki>();
     public DbSet<Bildirim> Bildirimler => Set<Bildirim>();
     public DbSet<Lisans> Lisanslar => Set<Lisans>();
 
@@ -104,10 +103,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ITenantProvide
             .Property(b => b.Tip).HasConversion<string>();
         modelBuilder.Entity<GelirGider>()
             .Property(g => g.Tip).HasConversion<string>();
-        modelBuilder.Entity<Yetki>()
-            .Property(y => y.Rol).HasConversion<string>();
-        modelBuilder.Entity<Yetki>()
-            .Property(y => y.ErisimTipi).HasConversion<string>();
         modelBuilder.Entity<Bildirim>()
             .Property(b => b.Tip).HasConversion<string>();
         modelBuilder.Entity<Bildirim>()

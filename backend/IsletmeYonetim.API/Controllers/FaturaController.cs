@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using IsletmeYonetim.API.Extensions;
 using IsletmeYonetim.Application.DTOs;
 using IsletmeYonetim.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -41,10 +41,7 @@ public class FaturaController(IFaturaService faturaService) : ControllerBase
     [Authorize(Roles = "Admin,SalesConsultant")]
     public async Task<ActionResult<ApiResponse<FaturaListeDto>>> Olustur([FromBody] FaturaOlusturRequest request)
     {
-        var kullaniciId = Guid.Parse(User.FindFirstValue("sub")
-                          ?? throw new UnauthorizedAccessException());
-
-        var response = await faturaService.CreateAsync(request, kullaniciId);
+        var response = await faturaService.CreateAsync(request, User.GetKullaniciId());
         return response.Basarili ? StatusCode(201, response) : BadRequest(response);
     }
 }
