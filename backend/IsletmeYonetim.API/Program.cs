@@ -52,6 +52,7 @@ builder.Services.AddScoped<IBildirimService, BildirimService>();
 builder.Services.AddScoped<IOdemeService, IyzicoOdemeService>();
 builder.Services.AddScoped<ILisansService, LisansService>();
 builder.Services.AddScoped<IRaporService, RaporService>();
+builder.Services.AddScoped<IIsletmeService, IsletmeService>();
 
 // AI servisi için HttpClient — Python FastAPI port 8001'de çalışır
 // BaseUrl appsettings.json > AiService bölümünden okunur (sabit kodlanmadı)
@@ -233,6 +234,9 @@ using (var scope = app.Services.CreateScope())
             "AdminEposta"     TEXT      NOT NULL,
             "OlusturmaTarihi" TIMESTAMP NOT NULL DEFAULT NOW()
         );
+
+        ALTER TABLE "Isletmeler"        ADD COLUMN IF NOT EXISTS "Enlem" DOUBLE PRECISION;
+        ALTER TABLE "Isletmeler"        ADD COLUMN IF NOT EXISTS "Boylam" DOUBLE PRECISION;
 
         ALTER TABLE "Kullanicilar"      ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
         ALTER TABLE "Kullanicilar"      ADD COLUMN IF NOT EXISTS "IlkGiris" BOOLEAN NOT NULL DEFAULT FALSE;

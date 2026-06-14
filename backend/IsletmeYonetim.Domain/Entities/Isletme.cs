@@ -9,4 +9,8 @@ public class Isletme
     public string Ad { get; set; } = string.Empty;          // İşletme adı (örn. "Yıldız Teknik Servis")
     public string AdminEposta { get; set; } = string.Empty; // Kaydı yapan ilk admin'in e-postası
     public DateTime OlusturmaTarihi { get; set; } = DateTime.UtcNow;
+
+    // İşletmenin (depo/merkez) konumu — teknisyen rotası buradan başlar
+    public double? Enlem { get; set; }
+    public double? Boylam { get; set; }
 }

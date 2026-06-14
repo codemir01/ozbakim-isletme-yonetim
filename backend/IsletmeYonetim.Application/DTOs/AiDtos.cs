@@ -24,3 +24,8 @@ public record FaturaKalemDto(
 // Sesle Rapor (NLP): teknisyenin sesten yazıya çevrilmiş ham notu → AI ile düzenlenmiş rapor
 public record RaporDuzenleIstek(string Metin);
 public record RaporDuzenleYanit(string Rapor);
+
+// Rota Optimizasyonu (TSP): teknisyenin ziyaret edeceği konumların en kısa sırası
+public record RotaNoktaDto(double Enlem, double Boylam);
+public record RotaOptimizeIstek(List<RotaNoktaDto> Noktalar);
+public record RotaOptimizeYanit(List<int> Sira, double ToplamMesafeKm);

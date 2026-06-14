@@ -32,8 +32,14 @@ export default function BakimPage() {
   const [yeniModal, setYeniModal] = useState(false);
   const [yeniForm, setYeniForm] = useState({ musteriId: '', kartTipi: 'Bakim', sonBakimTarihi: new Date().toISOString().split('T')[0], bakimAraligiGun: 180, notlar: '' });
   const [yeniHata, setYeniHata] = useState('');
+  // Günün Rotası (AI/TSP) — teknisyen yaklaşan bakımlarını en kısa sırayla gezer
+  const [isletmeKonum, setIsletmeKonum] = useState(null);   // depo başlangıcı
+  const [rota, setRota] = useState([]);                     // sıralı duraklar (ilk = depo)
+  const [rotaMesafe, setRotaMesafe] = useState(0);
+  const [rotaModal, setRotaModal] = useState(false);
+  const [rotaYukleniyor, setRotaYukleniyor] = useState(false);
 
-  useEffect(() => { veriCek(); }, []);
+  useEffect(() => { veriCek(); isletmeKonumYukle(); }, []);
 
   async function veriCek() {
     try {
@@ -47,6 +53,60 @@ export default function BakimPage() {
     } catch (err) { console.error(err); }
     finally { setYukleniyor(false); }
   }
+
+  async function isletmeKonumYukle() {
+    try {
+      const res = await api.get('/isletme/konum');
+      const k = res.data.veri;
+      setIsletmeKonum(k && k.enlem != null && k.boylam != null ? k : null);
+    } catch { /* sessiz */ }
+  }
+
+  // Bugün yapılacak işleri (bugün vadeli + geciken, konumlu) depodan başlayan en kısa sırayla diz
+  async function gununRotasiniOlustur() {
+    // gunKaldi <= 0  → bugün vadeli veya gecikmiş (yani bugün gidilmesi gereken işler)
+    // Aynı konumu (müşteriyi) birden çok kart varsa tek durağa indir — teknisyen oraya bir kez gider.
+    const aday = bakimlar
+      .filter((b) => b.gunKaldi <= 0 && konumVarMi(b.musteriEnlem, b.musteriBoylam))
+      .sort((a, b) => b.gunKaldi - a.gunKaldi); // bugüne en yakın kart önce (daha anlamlı not)
+    const gorulen = new Set();
+    const duraklar = [];
+    for (const b of aday) {
+      const anahtar = `${b.musteriEnlem},${b.musteriBoylam}`;
+      if (gorulen.has(anahtar)) continue;
+      gorulen.add(anahtar);
+      duraklar.push(b);
+    }
+    const depoVar = isletmeKonum?.enlem != null && isletmeKonum?.boylam != null;
+    if (duraklar.length < (depoVar ? 1 : 2)) {
+      alert('Bugün için konumu girilmiş yeterli bakım yok. (Bugün vadeli/geciken bakım + işletme konumu gerekli.)');
+      return;
+    }
+    setRotaYukleniyor(true);
+    try {
+      const bakimNoktalar = duraklar.map((b) => ({ enlem: b.musteriEnlem, boylam: b.musteriBoylam }));
+      const noktalar = depoVar
+        ? [{ enlem: isletmeKonum.enlem, boylam: isletmeKonum.boylam }, ...bakimNoktalar]
+        : bakimNoktalar;
+      const res = await api.post('/rota/optimize', { noktalar });
+      const veri = res.data.veri;
+      if (veri?.sira) {
+        const sirali = veri.sira.map((i) => {
+          if (depoVar && i === 0) return { depo: true };
+          return depoVar ? duraklar[i - 1] : duraklar[i];
+        });
+        setRota(sirali);
+        setRotaMesafe(veri.toplamMesafeKm ?? 0);
+        setRotaModal(true);
+      }
+    } catch (err) {
+      alert(err.response?.data?.hata || 'Rota hesaplanamadı. AI servisi çalışıyor mu?');
+    } finally {
+      setRotaYukleniyor(false);
+    }
+  }
+
+  const rotaNumarasi = (idx) => (rota[0]?.depo ? idx : idx + 1);
 
   async function detayAc(id) {
     setRiskSonuc(null); // Yeni modal açılınca önceki sonucu temizle
@@ -216,16 +276,30 @@ export default function BakimPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setYeniModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
-            style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Yeni Bakım Kartı
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Günün Rotası — teknisyenin yaklaşan bakımları için en kısa rota */}
+            <button
+              onClick={gununRotasiniOlustur}
+              disabled={rotaYukleniyor}
+              className="flex items-center gap-2 px-4 py-2.5 text-emerald-700 text-sm font-semibold rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 hover:-translate-y-0.5 disabled:opacity-60 transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+              {rotaYukleniyor ? 'Hesaplanıyor...' : '🚗 Günün Rotası (AI)'}
+            </button>
+
+            <button
+              onClick={() => setYeniModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
+              style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Yeni Bakım Kartı
+            </button>
+          </div>
         </div>
 
         {/* Kart listesi */}
@@ -566,6 +640,61 @@ export default function BakimPage() {
                   style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>Oluştur</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Günün Rotası Modalı — optimize edilmiş ziyaret sırası */}
+      {rotaModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-5 shrink-0 text-white" style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}>
+              <div>
+                <h3 className="text-base font-bold">🚗 Günün Rotası</h3>
+                <p className="text-xs text-white/80 mt-0.5">
+                  Bugün yapılacak işler · {isletmeKonum ? 'işletmeden başlayan ' : ''}en kısa sıra · ~{rotaMesafe} km
+                </p>
+              </div>
+              <button onClick={() => setRotaModal(false)} className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4 space-y-2">
+              {rota.map((b, idx) => (
+                <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50">
+                  {b.depo ? (
+                    <span className="w-8 h-8 shrink-0 rounded-lg bg-emerald-600 text-white flex items-center justify-center">🏢</span>
+                  ) : (
+                    <span className="w-8 h-8 shrink-0 rounded-full bg-indigo-600 text-white text-sm font-bold flex items-center justify-center">
+                      {rotaNumarasi(idx)}
+                    </span>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">
+                      {b.depo ? 'İşletme (Başlangıç)' : b.musteriAdSoyad}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {b.depo ? 'Depo / merkez' : (b.musteriAdres || `${b.kartTipi} · ${b.musteriTelefon}`)}
+                    </p>
+                  </div>
+                  {!b.depo && (
+                    <button
+                      onClick={() => yolTarifiAc(b.musteriEnlem, b.musteriBoylam, b.musteriAdres)}
+                      className="shrink-0 text-xs font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg px-2.5 py-1.5 transition-colors"
+                    >
+                      Konuma Git
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 shrink-0">
+              <p className="text-xs text-slate-500 text-center">
+                Yapay zeka {rota.filter((r) => !r.depo).length} bakımı en kısa toplam mesafeye (~{rotaMesafe} km) göre sıraladı.
+              </p>
+            </div>
           </div>
         </div>
       )}

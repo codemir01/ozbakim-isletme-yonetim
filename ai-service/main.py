@@ -265,6 +265,66 @@ def rapor_duzenle(istek: RaporDuzenleIstek):
     return {"rapor": _gemini_cagir(contents, config=config).strip()}
 
 
+# ── Rota Optimizasyonu (Gezgin Satıcı Problemi / TSP) ───────────────────────
+# Teknisyenin gün içinde gideceği adresleri en kısa toplam mesafeyle sıralar.
+# Dış kütüphane (OR-Tools) yerine saf Python: en yakın komşu + 2-opt sezgiseli.
+# Mesafe = haversine (iki GPS noktası arası kuşuçuşu km) → internet/anahtar gerekmez.
+class RotaNokta(BaseModel):
+    enlem: float
+    boylam: float
+
+
+class RotaIstek(BaseModel):
+    noktalar: list[RotaNokta] = Field(..., description="Ziyaret edilecek konumlar")
+
+
+def _haversine_km(a: RotaNokta, b: RotaNokta) -> float:
+    import math
+    R = 6371.0  # Dünya yarıçapı (km)
+    lat1, lon1, lat2, lon2 = map(math.radians, [a.enlem, a.boylam, b.enlem, b.boylam])
+    dlat, dlon = lat2 - lat1, lon2 - lon1
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(h))
+
+
+def _rota_uzunluk(sira: list[int], n: list[RotaNokta]) -> float:
+    return sum(_haversine_km(n[sira[i]], n[sira[i + 1]]) for i in range(len(sira) - 1))
+
+
+@app.post("/rota-optimize", tags=["Rota"])
+def rota_optimize(istek: RotaIstek):
+    """
+    Verilen konumlar için en kısa ziyaret sırasını (TSP) hesaplar.
+    Dönüş: { sira: [indeks...], toplamMesafeKm }. İlk nokta başlangıç kabul edilir.
+    """
+    n = istek.noktalar
+    if len(n) < 2:
+        return {"sira": list(range(len(n))), "toplamMesafeKm": 0.0}
+
+    # 1) En yakın komşu sezgiseli: 0. noktadan başla, her adımda en yakına git
+    kalan = set(range(len(n)))
+    sira = [0]
+    kalan.discard(0)
+    while kalan:
+        son = sira[-1]
+        yakin = min(kalan, key=lambda j: _haversine_km(n[son], n[j]))
+        sira.append(yakin)
+        kalan.discard(yakin)
+
+    # 2) 2-opt iyileştirme: kesişen/uzayan kenarları ters çevirerek toplamı kısalt
+    gelisti = True
+    while gelisti:
+        gelisti = False
+        for i in range(1, len(sira) - 1):
+            for k in range(i + 1, len(sira)):
+                yeni = sira[:i] + sira[i:k + 1][::-1] + sira[k + 1:]
+                if _rota_uzunluk(yeni, n) + 1e-9 < _rota_uzunluk(sira, n):
+                    sira = yeni
+                    gelisti = True
+
+    return {"sira": sira, "toplamMesafeKm": round(_rota_uzunluk(sira, n), 2)}
+
+
 @app.post("/rapor-sesli", tags=["NLP"])
 async def rapor_sesli(ses: UploadFile = File(...)):
     """
