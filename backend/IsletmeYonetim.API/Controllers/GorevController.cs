@@ -29,8 +29,9 @@ public class GorevController(IGorevService gorevService, IWebHostEnvironment env
         return Ok(response);
     }
 
-    // POST /api/v1/gorevler — yeni görev oluştur
+    // POST /api/v1/gorevler — yeni görev oluştur (yalnızca yönetici görev atayabilir)
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<ApiResponse<object>>> Olustur([FromBody] GorevOlusturRequest request)
     {
         // Görevi kimin oluşturduğunu JWT'den al
@@ -42,7 +43,7 @@ public class GorevController(IGorevService gorevService, IWebHostEnvironment env
     [HttpPut("{id}/durum")]
     public async Task<ActionResult<ApiResponse<object>>> DurumGuncelle(Guid id, [FromBody] GorevDurumGuncelleRequest request)
     {
-        var response = await gorevService.UpdateDurumAsync(id, request);
+        var response = await gorevService.UpdateDurumAsync(id, request, User.GetKullaniciId(), User.IsInRole("Admin"));
         return response.Basarili ? Ok(response) : NotFound(response);
     }
 
@@ -84,7 +85,7 @@ public class GorevController(IGorevService gorevService, IWebHostEnvironment env
 
         // DB'ye göreli URL kaydet (istemci kendi API adresiyle birleştirir)
         var fotografYolu = $"/uploads/gorevler/{dosyaAdi}";
-        var response = await gorevService.TamamlaAsync(id, fotografYolu);
+        var response = await gorevService.TamamlaAsync(id, fotografYolu, User.GetKullaniciId(), User.IsInRole("Admin"));
         return response.Basarili ? Ok(response) : NotFound(response);
     }
 

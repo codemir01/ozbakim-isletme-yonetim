@@ -19,7 +19,7 @@ export default function IlkSifrePage() {
   async function gonder(e) {
     e.preventDefault();
     setHata('');
-    if (sifre.length < 6) return setHata('Şifre en az 6 karakter olmalı.');
+    if (sifre.length < 8) return setHata('Şifre en az 8 karakter olmalı (büyük/küçük harf + rakam).');
     if (sifre !== tekrar) return setHata('Şifreler eşleşmiyor.');
     setYukleniyor(true);
     try {
@@ -59,7 +59,7 @@ export default function IlkSifrePage() {
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Yeni Şifre</label>
               <input type="password" required value={sifre} onChange={(e) => setSifre(e.target.value)}
-                placeholder="En az 6 karakter"
+                placeholder="En az 8 karakter (büyük/küçük harf + rakam)"
                 className="block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-sm focus:outline-none" />
             </div>
             <div>

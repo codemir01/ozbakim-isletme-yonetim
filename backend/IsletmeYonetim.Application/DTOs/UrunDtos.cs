@@ -9,6 +9,7 @@ public record UrunListeDto(
     string Kategori, // "Cihaz" veya "YedekParca" (string olarak dönüştürülmüş enum)
     string StokKodu,
     int StokAdedi,
+    int KritikStokSeviyesi,
     decimal AlisFiyati,
     string Durum     // "Aktif" veya "Pasif"
 );
@@ -19,7 +20,8 @@ public record UrunOlusturRequest(
     UrunKategori Kategori,
     string StokKodu,
     int StokAdedi,
-    decimal AlisFiyati
+    decimal AlisFiyati,
+    int KritikStokSeviyesi = 3
 );
 
 // Ürün güncellenirken gelen veri (durum da değiştirilebilir)
@@ -29,5 +31,6 @@ public record UrunGuncelleRequest(
     string StokKodu,
     int StokAdedi,
     decimal AlisFiyati,
-    UrunDurum Durum
+    UrunDurum Durum,
+    int KritikStokSeviyesi = 3
 );

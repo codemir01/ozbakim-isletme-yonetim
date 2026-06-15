@@ -33,20 +33,22 @@ export default function App() {
 
           {/* Aşağıdaki sayfalar PrivateRoute ile koruma altında.
               Token olmadan bu URL'lere gidilirse /login'e yönlendirilir. */}
+          {/* allowedRoles, Layout.jsx'teki menü rol haritasıyla birebir aynıdır.
+              Menüde gizli olan sayfaya URL ile de geçilemez. */}
           <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-          <Route path="/musteriler" element={<PrivateRoute><MusterilerPage /></PrivateRoute>} />
-          <Route path="/musteriler/:id" element={<PrivateRoute><MusteriDetayPage /></PrivateRoute>} />
-          <Route path="/urunler" element={<PrivateRoute><UrunlerPage /></PrivateRoute>} />
-          <Route path="/satislar" element={<PrivateRoute><SatislarPage /></PrivateRoute>} />
-          <Route path="/bakim" element={<PrivateRoute><BakimPage /></PrivateRoute>} />
-          <Route path="/gorevler" element={<PrivateRoute><GorevlerPage /></PrivateRoute>} />
-          <Route path="/gelir-gider" element={<PrivateRoute><GelirGiderPage /></PrivateRoute>} />
-          <Route path="/kullanicilar" element={<PrivateRoute><KullanicilarPage /></PrivateRoute>} />
-          <Route path="/faturalar" element={<PrivateRoute><FaturaPage /></PrivateRoute>} />
-          <Route path="/harita" element={<PrivateRoute><HaritaPage /></PrivateRoute>} />
+          <Route path="/musteriler" element={<PrivateRoute allowedRoles={['Admin', 'SalesConsultant']}><MusterilerPage /></PrivateRoute>} />
+          <Route path="/musteriler/:id" element={<PrivateRoute allowedRoles={['Admin', 'SalesConsultant']}><MusteriDetayPage /></PrivateRoute>} />
+          <Route path="/urunler" element={<PrivateRoute allowedRoles={['Admin', 'SalesConsultant']}><UrunlerPage /></PrivateRoute>} />
+          <Route path="/satislar" element={<PrivateRoute allowedRoles={['Admin', 'SalesConsultant']}><SatislarPage /></PrivateRoute>} />
+          <Route path="/bakim" element={<PrivateRoute allowedRoles={['Admin', 'Technician']}><BakimPage /></PrivateRoute>} />
+          <Route path="/gorevler" element={<PrivateRoute allowedRoles={['Admin', 'Technician']}><GorevlerPage /></PrivateRoute>} />
+          <Route path="/gelir-gider" element={<PrivateRoute allowedRoles={['Admin']}><GelirGiderPage /></PrivateRoute>} />
+          <Route path="/kullanicilar" element={<PrivateRoute allowedRoles={['Admin']}><KullanicilarPage /></PrivateRoute>} />
+          <Route path="/faturalar" element={<PrivateRoute allowedRoles={['Admin', 'SalesConsultant']}><FaturaPage /></PrivateRoute>} />
+          <Route path="/harita" element={<PrivateRoute allowedRoles={['Admin', 'SalesConsultant']}><HaritaPage /></PrivateRoute>} />
           <Route path="/profil" element={<PrivateRoute><ProfilPage /></PrivateRoute>} />
-          <Route path="/lisans" element={<PrivateRoute><LisansPage /></PrivateRoute>} />
-          <Route path="/raporlar" element={<PrivateRoute><RaporlarPage /></PrivateRoute>} />
+          <Route path="/lisans" element={<PrivateRoute allowedRoles={['Admin']}><LisansPage /></PrivateRoute>} />
+          <Route path="/raporlar" element={<PrivateRoute allowedRoles={['Admin']}><RaporlarPage /></PrivateRoute>} />
 
           {/* Tanımsız bir URL girilirse dashboard'a yönlendir */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

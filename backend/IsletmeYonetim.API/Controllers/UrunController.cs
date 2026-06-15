@@ -18,6 +18,7 @@ public class UrunController(IUrunService urunService) : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin,SalesConsultant")]
     public async Task<ActionResult<ApiResponse<UrunListeDto>>> Olustur([FromBody] UrunOlusturRequest request)
     {
         var response = await urunService.CreateUrunAsync(request);
@@ -25,6 +26,7 @@ public class UrunController(IUrunService urunService) : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "Admin,SalesConsultant")]
     public async Task<ActionResult<ApiResponse<object>>> Guncelle(Guid id, [FromBody] UrunGuncelleRequest request)
     {
         var response = await urunService.UpdateUrunAsync(id, request);
@@ -32,6 +34,7 @@ public class UrunController(IUrunService urunService) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin,SalesConsultant")]
     public async Task<ActionResult<ApiResponse<object>>> Sil(Guid id)
     {
         var response = await urunService.DeleteUrunAsync(id);

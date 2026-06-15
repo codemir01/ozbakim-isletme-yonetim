@@ -15,7 +15,7 @@ public class UrunService(AppDbContext db) : IUrunService
             .Where(u => !u.SilindiMi)
             .Select(u => new UrunListeDto(
                 u.Id, u.UrunAdi, u.Kategori.ToString(),
-                u.StokKodu, u.StokAdedi, u.AlisFiyati, u.Durum.ToString()))
+                u.StokKodu, u.StokAdedi, u.KritikStokSeviyesi, u.AlisFiyati, u.Durum.ToString()))
             .ToListAsync();
 
         return new ApiResponse<List<UrunListeDto>>(true, liste, null, null);
@@ -29,6 +29,8 @@ public class UrunService(AppDbContext db) : IUrunService
             Kategori = request.Kategori,
             StokKodu = request.StokKodu,
             StokAdedi = request.StokAdedi,
+            // 0 veya negatif gelirse (örn. eski mobil istemci alanı göndermezse) makul varsayılana düş
+            KritikStokSeviyesi = request.KritikStokSeviyesi > 0 ? request.KritikStokSeviyesi : 3,
             AlisFiyati = request.AlisFiyati
         };
 
@@ -36,7 +38,7 @@ public class UrunService(AppDbContext db) : IUrunService
         await db.SaveChangesAsync();
 
         var dto = new UrunListeDto(urun.Id, urun.UrunAdi, urun.Kategori.ToString(),
-            urun.StokKodu, urun.StokAdedi, urun.AlisFiyati, urun.Durum.ToString());
+            urun.StokKodu, urun.StokAdedi, urun.KritikStokSeviyesi, urun.AlisFiyati, urun.Durum.ToString());
 
         return new ApiResponse<UrunListeDto>(true, dto, null, "Ürün oluşturuldu.");
     }
@@ -52,6 +54,7 @@ public class UrunService(AppDbContext db) : IUrunService
         urun.Kategori = request.Kategori;
         urun.StokKodu = request.StokKodu;
         urun.StokAdedi = request.StokAdedi;
+        urun.KritikStokSeviyesi = request.KritikStokSeviyesi > 0 ? request.KritikStokSeviyesi : 3;
         urun.AlisFiyati = request.AlisFiyati;
         urun.Durum = request.Durum;
 

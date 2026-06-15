@@ -4,11 +4,18 @@ using IsletmeYonetim.Domain.Entities;
 using IsletmeYonetim.Domain.Enums;
 using IsletmeYonetim.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace IsletmeYonetim.Infrastructure.Services;
 
-public class SatisService(AppDbContext db) : ISatisService
+public class SatisService(
+    AppDbContext db,
+    IBildirimService bildirimService,
+    ILogger<SatisService> logger) : ISatisService
 {
+    // Müşteri toplam borcu bu tutarı aşınca işletmenin admin'ine bildirim gider
+    private const decimal YuksekBorcEsigi = 50000m;
+
     public async Task<PagedResponse<SatisListeDto>> GetSatislarAsync(int sayfa = 1, int boyut = 20)
     {
         sayfa = Math.Max(1, sayfa);
@@ -80,6 +87,7 @@ public class SatisService(AppDbContext db) : ISatisService
             db.Satislar.Add(satis);
 
             // İş kuralı 3: Borç ekle + audit kaydı
+            decimal eskiBorc = musteri.ToplamBorc;
             musteri.ToplamBorc += request.SatisFiyati;
             db.BorcTahsilatlar.Add(new BorcTahsilat
             {
@@ -104,6 +112,60 @@ public class SatisService(AppDbContext db) : ISatisService
             }
 
             await db.SaveChangesAsync();
+
+            // İş kuralı 5: Stok kritik seviyeye düştüyse işletmenin admin'ine bildirim gönder.
+            // urun.StokAdedi düşüm SONRASI değerdir (yukarıdaki ExecuteUpdate DB'ye işledi).
+            // Spam olmasın diye yalnızca eşiğe YENİ düştüğünde ya da stok tamamen bittiğinde uyarır.
+            if (urun is not null)
+            {
+                int yeniStok = urun.StokAdedi;
+                int esik = urun.KritikStokSeviyesi;
+                bool kritigeYeniDustu = yeniStok <= esik && (yeniStok + 1) > esik;
+                if (kritigeYeniDustu || yeniStok == 0)
+                {
+                    try
+                    {
+                        var mesaj = yeniStok == 0
+                            ? $"🔴 STOK BİTTİ: {urun.UrunAdi} ürününün stoğu tükendi."
+                            : $"🟠 KRİTİK STOK: {urun.UrunAdi} ürününden yalnızca {yeniStok} adet kaldı.";
+
+                        // Tenant filtresi sayesinde yalnızca BU işletmenin aktif admin'leri gelir
+                        var adminIdleri = await db.Kullanicilar
+                            .Where(k => k.Rol == Rol.Admin && k.AktifMi)
+                            .Select(k => k.Id)
+                            .ToListAsync();
+
+                        foreach (var adminId in adminIdleri)
+                            await bildirimService.CreateAsync(adminId, mesaj, BildirimTip.Uyari);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Bildirim hatası satışı geri almasın — sessizce yutma, logla.
+                        logger.LogWarning(ex, "Kritik stok bildirimi gönderilemedi. UrunId={UrunId}", request.UrunId);
+                    }
+                }
+            }
+
+            // İş kuralı 6: Müşteri toplam borcu yüksek borç eşiğini YENİ aştıysa admine bildirim
+            if (eskiBorc <= YuksekBorcEsigi && musteri.ToplamBorc > YuksekBorcEsigi)
+            {
+                try
+                {
+                    var mesaj = $"⚠️ YÜKSEK BORÇ: {musteri.Ad} {musteri.Soyad} müşterisinin toplam borcu " +
+                                $"{musteri.ToplamBorc:N0}₺ ile {YuksekBorcEsigi:N0}₺ eşiğini aştı.";
+                    var adminIdleri = await db.Kullanicilar
+                        .Where(k => k.Rol == Rol.Admin && k.AktifMi)
+                        .Select(k => k.Id)
+                        .ToListAsync();
+                    foreach (var adminId in adminIdleri)
+                        await bildirimService.CreateAsync(adminId, mesaj, BildirimTip.Uyari);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Yüksek borç bildirimi gönderilemedi. MusteriId={MusteriId}", request.MusteriId);
+                }
+            }
+
             await transaction.CommitAsync();
             return new ApiResponse<object>(true, null, null, "Satış kaydedildi.");
         }

@@ -21,6 +21,5 @@ public class Musteri : ITenantEntity
     public ICollection<Satis> Satislar { get; set; } = [];
     public ICollection<BakimServis> BakimServisler { get; set; } = [];
     public ICollection<Gorev> Gorevler { get; set; } = [];
-    public ICollection<PersonelMusteri> PersonelMusteriler { get; set; } = [];
     public ICollection<BorcTahsilat> BorcTahsilatlar { get; set; } = [];
 }

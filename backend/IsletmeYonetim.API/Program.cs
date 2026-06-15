@@ -246,7 +246,6 @@ using (var scope = app.Services.CreateScope())
         ALTER TABLE "BakimServisler"    ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
         ALTER TABLE "BakimGecmisi"      ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
         ALTER TABLE "Gorevler"          ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
-        ALTER TABLE "PersonelMusteriler" ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
         ALTER TABLE "BorcTahsilatlar"   ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
         ALTER TABLE "GelirGiderler"     ADD COLUMN IF NOT EXISTS "IsletmeId" UUID;
 
@@ -290,6 +289,7 @@ using (var scope = app.Services.CreateScope())
     db.Database.ExecuteSqlRaw("""
         ALTER TABLE "Musteriler" ADD COLUMN IF NOT EXISTS "SilindiMi" BOOLEAN NOT NULL DEFAULT FALSE;
         ALTER TABLE "Urunler"    ADD COLUMN IF NOT EXISTS "SilindiMi" BOOLEAN NOT NULL DEFAULT FALSE;
+        ALTER TABLE "Urunler"    ADD COLUMN IF NOT EXISTS "KritikStokSeviyesi" INTEGER NOT NULL DEFAULT 3;
 
         CREATE INDEX IF NOT EXISTS "ix_musteriler_silinmedi"     ON "Musteriler"    ("SilindiMi");
         CREATE INDEX IF NOT EXISTS "ix_urunler_silinmedi"        ON "Urunler"       ("SilindiMi");
@@ -366,7 +366,6 @@ using (var scope = app.Services.CreateScope())
         UPDATE "BakimServisler"     SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
         UPDATE "BakimGecmisi"       SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
         UPDATE "Gorevler"           SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
-        UPDATE "PersonelMusteriler" SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
         UPDATE "BorcTahsilatlar"    SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
         UPDATE "GelirGiderler"      SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;
         UPDATE "Faturalar"          SET "IsletmeId" = '11111111-1111-1111-1111-111111111111' WHERE "IsletmeId" IS NULL;

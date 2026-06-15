@@ -20,12 +20,7 @@ public class KullaniciOlusturValidator : AbstractValidator<KullaniciOlusturReque
             .EmailAddress().WithMessage("Geçerli bir e-posta adresi girin.")
             .MaximumLength(200).WithMessage("E-posta en fazla 200 karakter olabilir.");
 
-        RuleFor(x => x.Sifre)
-            .NotEmpty().WithMessage("Şifre boş olamaz.")
-            .MinimumLength(8).WithMessage("Şifre en az 8 karakter olmalıdır.")
-            .Matches("[A-Z]").WithMessage("Şifre en az bir büyük harf içermelidir.")
-            .Matches("[a-z]").WithMessage("Şifre en az bir küçük harf içermelidir.")
-            .Matches("[0-9]").WithMessage("Şifre en az bir rakam içermelidir.");
+        RuleFor(x => x.Sifre).GecerliSifre();
 
         RuleFor(x => x.Telefon)
             .NotEmpty().WithMessage("Telefon boş olamaz.")

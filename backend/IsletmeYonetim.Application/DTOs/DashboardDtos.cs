@@ -10,7 +10,10 @@ public record DashboardOzetDto(
     int YaklasanBakim,
     decimal ToplamBorc,
     decimal ToplamTahsilat,
-    int PersonelSayisi
+    int PersonelSayisi,
+    int KritikStokSayisi,
+    int GecikenBakim,
+    int GecikenGorev
 );
 
 // Son 7 günün satış grafiği için — her gün bir satır

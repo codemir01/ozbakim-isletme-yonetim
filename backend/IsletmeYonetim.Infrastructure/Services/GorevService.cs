@@ -95,33 +95,71 @@ public class GorevService(AppDbContext db, IBildirimService bildirimService, ILo
         return ApiResponse<object>.Basari("Görev oluşturuldu.");
     }
 
-    public async Task<ApiResponse<object>> UpdateDurumAsync(Guid id, GorevDurumGuncelleRequest request)
+    public async Task<ApiResponse<object>> UpdateDurumAsync(Guid id, GorevDurumGuncelleRequest request, Guid cagiranId, bool yonetici)
     {
         // FirstOrDefaultAsync tenant filtresini uygular (FindAsync ATLAR) → başka işletmenin görevi güncellenemez
         var gorev = await db.Gorevler.FirstOrDefaultAsync(g => g.Id == id);
         if (gorev is null)
             return new ApiResponse<object>(false, null, "Görev bulunamadı.", null);
 
+        // Yetki: yönetici her görevi güncelleyebilir; diğer kullanıcılar yalnızca KENDİLERİNE atanan görevi
+        if (!yonetici && gorev.AtananId != cagiranId)
+            return new ApiResponse<object>(false, null, "Bu görev size atanmadığı için işlem yapamazsınız.", null);
+
         if (!Enum.TryParse<GorevDurum>(request.Durum, true, out var yeniDurum))
             return new ApiResponse<object>(false, null, "Geçersiz durum değeri.", null);
 
+        // Görev bu işlemle YENİ tamamlandı mı? (tekrar bildirim göndermemek için)
+        bool yeniTamamlandi = yeniDurum == GorevDurum.Tamamlandi && gorev.Durum != GorevDurum.Tamamlandi;
+
         gorev.Durum = yeniDurum;
         await db.SaveChangesAsync();
+
+        if (yeniTamamlandi)
+            await TamamlanmaBildirimiGonder(gorev);
+
         return new ApiResponse<object>(true, null, null, "Durum güncellendi.");
     }
 
+    // Görev tamamlanınca, görevi OLUŞTURAN kişiye (genelde admin) bilgi bildirimi gönderir.
+    private async Task TamamlanmaBildirimiGonder(Gorev gorev)
+    {
+        try
+        {
+            await bildirimService.CreateAsync(
+                gorev.OlusturanId,
+                $"✅ Görev tamamlandı: {gorev.GorevAdi}",
+                Domain.Entities.BildirimTip.Bilgi);
+        }
+        catch (Exception ex)
+        {
+            // Bildirim hatası ana işlemi engellemesin — sessizce yutma, logla.
+            logger.LogWarning(ex, "Görev tamamlanma bildirimi gönderilemedi. GorevId={GorevId}", gorev.Id);
+        }
+    }
+
     // Teknisyen görevi kanıt fotoğrafıyla tamamlar: fotoğraf yolu kaydedilir, durum Tamamlandi olur.
-    public async Task<ApiResponse<object>> TamamlaAsync(Guid id, string fotografYolu)
+    public async Task<ApiResponse<object>> TamamlaAsync(Guid id, string fotografYolu, Guid cagiranId, bool yonetici)
     {
         // FirstOrDefaultAsync tenant filtresini uygular (FindAsync ATLAR) → başka işletmenin görevi tamamlanamaz
         var gorev = await db.Gorevler.FirstOrDefaultAsync(g => g.Id == id);
         if (gorev is null)
             return new ApiResponse<object>(false, null, "Görev bulunamadı.", null);
 
+        // Yetki: yönetici her görevi tamamlayabilir; teknisyen yalnızca KENDİSİNE atanan görevi
+        if (!yonetici && gorev.AtananId != cagiranId)
+            return new ApiResponse<object>(false, null, "Bu görev size atanmadığı için tamamlayamazsınız.", null);
+
+        bool yeniTamamlandi = gorev.Durum != GorevDurum.Tamamlandi;
+
         gorev.Durum = GorevDurum.Tamamlandi;
         gorev.TamamlanmaFotografi = fotografYolu;
         gorev.TamamlanmaTarihi = DateTime.UtcNow;
         await db.SaveChangesAsync();
+
+        if (yeniTamamlandi)
+            await TamamlanmaBildirimiGonder(gorev);
+
         return new ApiResponse<object>(true, null, null, "Görev fotoğrafla tamamlandı.");
     }
 

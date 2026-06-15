@@ -41,6 +41,15 @@ public class DashboardService(AppDbContext db, ITenantProvider tenant) : IDashbo
             .CountAsync(b => b.BakimYapilacakTarih <= DateTime.UtcNow.AddDays(7));
         var personelSayisi = await db.Kullanicilar.CountAsync(k => k.AktifMi);
 
+        var bugun = DateTime.UtcNow.Date;
+        // Proaktif uyarı sayaçları
+        var kritikStokSayisi = await db.Urunler
+            .CountAsync(u => !u.SilindiMi && u.Durum == UrunDurum.Aktif && u.StokAdedi <= u.KritikStokSeviyesi);
+        var gecikenBakim = await db.BakimServisler
+            .CountAsync(b => b.BakimYapilacakTarih < bugun);
+        var gecikenGorev = await db.Gorevler
+            .CountAsync(g => g.SonTeslimTarihi < bugun && g.Durum != GorevDurum.Tamamlandi);
+
         var ozet = new DashboardOzetDto(
             musteriOzet?.Sayisi ?? 0,
             toplamUrun,
@@ -50,7 +59,10 @@ public class DashboardService(AppDbContext db, ITenantProvider tenant) : IDashbo
             yaklasanBakim,
             musteriOzet?.ToplamBorc ?? 0,
             musteriOzet?.ToplamTahsilat ?? 0,
-            personelSayisi);
+            personelSayisi,
+            kritikStokSayisi,
+            gecikenBakim,
+            gecikenGorev);
 
         return new ApiResponse<DashboardOzetDto>(true, ozet, null, null);
     }

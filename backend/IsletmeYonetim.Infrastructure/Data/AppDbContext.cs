@@ -22,7 +22,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ITenantProvide
     public DbSet<BakimServis> BakimServisler => Set<BakimServis>();
     public DbSet<BakimGecmis> BakimGecmisi => Set<BakimGecmis>();
     public DbSet<Gorev> Gorevler => Set<Gorev>();
-    public DbSet<PersonelMusteri> PersonelMusteriler => Set<PersonelMusteri>();
     public DbSet<BorcTahsilat> BorcTahsilatlar => Set<BorcTahsilat>();
     public DbSet<Fatura> Faturalar => Set<Fatura>();
     public DbSet<GelirGider> GelirGiderler => Set<GelirGider>();
@@ -31,10 +30,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ITenantProvide
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // PersonelMusteri tablosunun birincil anahtarı bileşik — PersonelId + MusteriId
-        modelBuilder.Entity<PersonelMusteri>()
-            .HasKey(pm => new { pm.PersonelId, pm.MusteriId });
-
         // Gorev entity'sinde iki ayrı Kullanici FK'sı var (Atanan ve Olusturan).
         // EF Core bunu otomatik ayırt edemez, elle tanımlamazsak migration hatası verir.
         modelBuilder.Entity<Gorev>()

@@ -9,11 +9,12 @@ const rolConfig = {
   Worker: { label: 'Çalışan', cls: 'bg-slate-100 text-slate-600' },
 };
 
+// Worker rolü atanabilir seçeneklerden çıkarıldı (sistemde karşılığı/menüsü yok).
+// rolBilgi haritasında kalıyor ki eski Worker kullanıcıları varsa doğru görüntülensin.
 const rolSecenekleri = [
   { value: 'Admin', label: 'Admin' },
   { value: 'SalesConsultant', label: 'Satış Danışmanı' },
   { value: 'Technician', label: 'Teknisyen' },
-  { value: 'Worker', label: 'Çalışan' },
 ];
 
 // rol: backend'de string enum (Admin, SalesConsultant, Technician, Worker) — 1 değil
@@ -378,7 +379,7 @@ function FormAlanlari({ form, setForm, sifreGorunur, duzenlemeModu }) {
           <input
             type="password" required value={form.sifre}
             onChange={(e) => setForm({ ...form, sifre: e.target.value })}
-            placeholder="En az 6 karakter"
+            placeholder="En az 8 karakter (büyük/küçük harf + rakam)"
             className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-slate-50 focus:bg-white transition"
           />
         </div>

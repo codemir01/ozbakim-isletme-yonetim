@@ -7,7 +7,7 @@ export default function UrunlerPage() {
   const [arama, setArama] = useState('');
   const [yukleniyor, setYukleniyor] = useState(true);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ urunAdi: '', kategori: 'Cihaz', stokKodu: '', stokAdedi: 0, alisFiyati: 0 });
+  const [form, setForm] = useState({ urunAdi: '', kategori: 'Cihaz', stokKodu: '', stokAdedi: 0, alisFiyati: 0, kritikStokSeviyesi: 3 });
   const [duzenlemeModal, setDuzenlemeModal] = useState(false);
   const [duzenlemeForm, setDuzenlemeForm] = useState(null);
   const [silOnayId, setSilOnayId] = useState(null);
@@ -25,15 +25,15 @@ export default function UrunlerPage() {
   async function handleKaydet(e) {
     e.preventDefault();
     try {
-      await api.post('/urunler', { ...form, stokAdedi: Number(form.stokAdedi), alisFiyati: Number(form.alisFiyati) });
+      await api.post('/urunler', { ...form, stokAdedi: Number(form.stokAdedi), alisFiyati: Number(form.alisFiyati), kritikStokSeviyesi: Number(form.kritikStokSeviyesi) });
       setModal(false);
-      setForm({ urunAdi: '', kategori: 'Cihaz', stokKodu: '', stokAdedi: 0, alisFiyati: 0 });
+      setForm({ urunAdi: '', kategori: 'Cihaz', stokKodu: '', stokAdedi: 0, alisFiyati: 0, kritikStokSeviyesi: 3 });
       veriCek();
     } catch (err) { console.error(err); }
   }
 
   function duzenlemeAc(u) {
-    setDuzenlemeForm({ id: u.id, urunAdi: u.urunAdi, kategori: u.kategori, stokKodu: u.stokKodu, stokAdedi: u.stokAdedi, alisFiyati: u.alisFiyati, durum: u.durum });
+    setDuzenlemeForm({ id: u.id, urunAdi: u.urunAdi, kategori: u.kategori, stokKodu: u.stokKodu, stokAdedi: u.stokAdedi, alisFiyati: u.alisFiyati, durum: u.durum, kritikStokSeviyesi: u.kritikStokSeviyesi ?? 3 });
     setDuzenlemeModal(true);
   }
 
@@ -47,6 +47,7 @@ export default function UrunlerPage() {
         stokAdedi: Number(duzenlemeForm.stokAdedi),
         alisFiyati: Number(duzenlemeForm.alisFiyati),
         durum: duzenlemeForm.durum,
+        kritikStokSeviyesi: Number(duzenlemeForm.kritikStokSeviyesi),
       });
       setDuzenlemeModal(false);
       setDuzenlemeForm(null);
@@ -67,7 +68,7 @@ export default function UrunlerPage() {
     u.stokKodu.toLowerCase().includes(arama.toLowerCase())
   );
 
-  const dusukStok = urunler.filter((u) => u.stokAdedi < 5).length;
+  const dusukStok = urunler.filter((u) => u.stokAdedi <= (u.kritikStokSeviyesi ?? 3)).length;
 
   return (
     <Layout>
@@ -173,8 +174,8 @@ export default function UrunlerPage() {
                       <span className="font-mono text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-lg">{u.stokKodu}</span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${u.stokAdedi < 5 ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-700'}`}>
-                        {u.stokAdedi < 5 && (
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${u.stokAdedi <= (u.kritikStokSeviyesi ?? 3) ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-700'}`}>
+                        {u.stokAdedi <= (u.kritikStokSeviyesi ?? 3) && (
                           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                           </svg>
@@ -266,6 +267,11 @@ export default function UrunlerPage() {
                   <input type="number" min="0" step="0.01" value={duzenlemeForm.alisFiyati} onChange={(e) => setDuzenlemeForm({ ...duzenlemeForm, alisFiyati: e.target.value })}
                     className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-slate-50 focus:bg-white transition" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kritik Stok Seviyesi</label>
+                <input type="number" min="0" value={duzenlemeForm.kritikStokSeviyesi} onChange={(e) => setDuzenlemeForm({ ...duzenlemeForm, kritikStokSeviyesi: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-slate-50 focus:bg-white transition" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Durum</label>
@@ -365,6 +371,12 @@ export default function UrunlerPage() {
                   <input type="number" min="0" step="0.01" value={form.alisFiyati} onChange={(e) => setForm({ ...form, alisFiyati: e.target.value })}
                     className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-slate-50 focus:bg-white transition" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Kritik Stok Seviyesi</label>
+                <input type="number" min="0" value={form.kritikStokSeviyesi} onChange={(e) => setForm({ ...form, kritikStokSeviyesi: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-slate-50 focus:bg-white transition" />
+                <p className="text-[11px] text-slate-400 mt-1">Stok bu seviyeye düşünce yöneticiye bildirim gönderilir.</p>
               </div>
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setModal(false)}

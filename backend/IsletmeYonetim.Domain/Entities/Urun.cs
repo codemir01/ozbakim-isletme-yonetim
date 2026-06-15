@@ -11,6 +11,7 @@ public class Urun : ITenantEntity
     public UrunKategori Kategori { get; set; }  // Cihaz veya YedekParca
     public string StokKodu { get; set; } = string.Empty;
     public int StokAdedi { get; set; }          // Satış yapıldıkça azaltılır
+    public int KritikStokSeviyesi { get; set; } = 3;  // Bu seviyeye düşünce admine bildirim gider
     public decimal AlisFiyati { get; set; }
     public UrunDurum Durum { get; set; } = UrunDurum.Aktif;
     public bool SilindiMi { get; set; } = false;

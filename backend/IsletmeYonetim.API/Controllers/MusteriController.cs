@@ -29,6 +29,7 @@ public class MusteriController(IMusteriService musteriService) : ControllerBase
 
     // POST /api/v1/musteriler — yeni müşteri oluştur
     [HttpPost]
+    [Authorize(Roles = "Admin,SalesConsultant")]
     public async Task<ActionResult<ApiResponse<MusteriListeDto>>> Olustur([FromBody] MusteriOlusturRequest request)
     {
         var response = await musteriService.CreateMusteriAsync(request);
@@ -40,6 +41,7 @@ public class MusteriController(IMusteriService musteriService) : ControllerBase
 
     // PUT /api/v1/musteriler/{id} — müşteri bilgilerini güncelle
     [HttpPut("{id}")]
+    [Authorize(Roles = "Admin,SalesConsultant")]
     public async Task<ActionResult<ApiResponse<object>>> Guncelle(Guid id, [FromBody] MusteriGuncelleRequest request)
     {
         var response = await musteriService.UpdateMusteriAsync(id, request);
@@ -57,6 +59,7 @@ public class MusteriController(IMusteriService musteriService) : ControllerBase
 
     // POST /api/v1/musteriler/{id}/borc-ekle — manuel borç ekle (audit kaydı oluşturur)
     [HttpPost("{id}/borc-ekle")]
+    [Authorize(Roles = "Admin,SalesConsultant")]
     public async Task<ActionResult<ApiResponse<object>>> BorcEkle(Guid id, [FromBody] BorcEkleRequest request)
     {
         var response = await musteriService.AddBorcAsync(id, request);
@@ -65,6 +68,7 @@ public class MusteriController(IMusteriService musteriService) : ControllerBase
 
     // POST /api/v1/musteriler/{id}/tahsilat-ekle — tahsilat yap (kalan borçtan fazla olamaz)
     [HttpPost("{id}/tahsilat-ekle")]
+    [Authorize(Roles = "Admin,SalesConsultant")]
     public async Task<ActionResult<ApiResponse<object>>> TahsilatEkle(Guid id, [FromBody] TahsilatEkleRequest request)
     {
         var response = await musteriService.AddTahsilatAsync(id, request);
@@ -73,6 +77,7 @@ public class MusteriController(IMusteriService musteriService) : ControllerBase
 
     // PUT /api/v1/musteriler/{id}/konum — sadece enlem/boylam güncelle
     [HttpPut("{id}/konum")]
+    [Authorize(Roles = "Admin,SalesConsultant")]
     public async Task<ActionResult<ApiResponse<object>>> KonumGuncelle(Guid id, [FromBody] KonumGuncelleRequest request)
     {
         var response = await musteriService.UpdateKonumAsync(id, request);

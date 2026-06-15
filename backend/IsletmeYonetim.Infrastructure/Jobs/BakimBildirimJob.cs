@@ -73,13 +73,18 @@ public class BakimBildirimJob(
             .Select(k => new { k.Id, k.IsletmeId })
             .ToListAsync();
 
-        var gecikmisSayisi = yaklasanlar.Count(b => b.BakimYapilacakTarih.Date < bugun);
-        var bildirimMesaji = gecikmisSayisi > 0
-            ? $"{yaklasanlar.Count} bakım dikkat bekliyor ({gecikmisSayisi} tanesi gecikmiş)."
-            : $"Önümüzdeki 7 günde {yaklasanlar.Count} bakım randevusu var.";
-
         foreach (var admin in adminler)
         {
+            // BUG FIX: her admin'e SADECE kendi işletmesinin bakım sayısı yazılır
+            // (önceden tüm işletmelerin toplamı her admin'e gidiyordu → yanlış/sızıntı).
+            var isletmeBakimlari = yaklasanlar.Where(b => b.IsletmeId == admin.IsletmeId).ToList();
+            if (isletmeBakimlari.Count == 0) continue;
+
+            var gecikmisSayisi = isletmeBakimlari.Count(b => b.BakimYapilacakTarih.Date < bugun);
+            var bildirimMesaji = gecikmisSayisi > 0
+                ? $"{isletmeBakimlari.Count} bakım dikkat bekliyor ({gecikmisSayisi} tanesi gecikmiş)."
+                : $"Önümüzdeki 7 günde {isletmeBakimlari.Count} bakım randevusu var.";
+
             // Bildirim doğru işletmeye yazılsın diye o admin'in tenant'ını ayarla
             tenant.SetIsletme(admin.IsletmeId);
             await bildirimService.CreateAsync(admin.Id, bildirimMesaji, BildirimTip.Uyari);

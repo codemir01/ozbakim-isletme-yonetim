@@ -30,7 +30,7 @@ export default function KayitPage() {
     { n: 'ad', l: 'Adınız', t: 'text', p: 'Veli' },
     { n: 'soyad', l: 'Soyadınız', t: 'text', p: 'Kaya' },
     { n: 'eposta', l: 'E-posta', t: 'email', p: 'ornek@sirket.com' },
-    { n: 'sifre', l: 'Şifre (en az 6 karakter)', t: 'password', p: '••••••••' },
+    { n: 'sifre', l: 'Şifre (en az 8 karakter, büyük/küçük harf + rakam)', t: 'password', p: '••••••••' },
   ];
 
   return (
